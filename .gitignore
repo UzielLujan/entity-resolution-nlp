@@ -1,0 +1,22 @@
+# entorno
+.env
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+
+# artefactos ML
+*.pt
+*.bin
+*.faiss
+*.parquet
+
+# outputs
+dist/
+*.egg-info/
+.eggs/
+
+# sistema
+.DS_Store
+*.png
+*.jpg
