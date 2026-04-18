@@ -68,12 +68,12 @@ def check_paths() -> None:
     }
     print("── Rutas del proyecto ──────────────────────")
     for name, path in paths.items():
-        status = "✓" if path.exists() else "✗ NO EXISTE"
+        status = "EXISTE" if path.exists() else "NO EXISTE"
         print(f"  {status}  {name}: {path}")
 
     print("\n── Archivos fuente ─────────────────────────")
     for key, path in RAW_FILES.items():
-        status = "✓" if path.exists() else "✗ NO EXISTE"
+        status = "EXISTE" if path.exists() else "NO EXISTE"
         print(f"  {status}  {key}: {path.name}")
 
 
