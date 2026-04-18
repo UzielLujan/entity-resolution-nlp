@@ -13,7 +13,7 @@ Los tres objetivos y productos finales esperados son:
 2. **Base de Datos Consolidada:** Consolidar las distintas tablas dispersas en una sola base de datos relacional para que esté disponible a sistemas de procesamiento automático.
 3. **Métodos de Comparación:** Desarrollo de métodos de comparación de cadenas de texto de longitudes similares, centrados en nombres propios.
 
-*Los detalles operativos y hallazgos reportados, están en:* `Contexto_Consultoria_INER.md` *y* `Reporte_BasesdeDatos_INER.md`.
+*Los detalles operativos están en:* `Contexto_Consultoria_INER.md`
 
 ---
 
@@ -23,10 +23,10 @@ Este es el proyecto académico insignia de mi maestría en Cómputo Estadístico
 Los objetivos y productos que requiere el modelo de tesis son:
 
 1. **Definición de Bloques Semánticos:** Identificar y definir bloques semánticos relevantes para el proceso de ligado, basados en las columnas identificadas en la fase de consultoría.
-2. **Mapeo y Serialización de Texto:** Mapear las columnas originales hacia los bloques semánticos y desarrollar un proceso serialización de texto que transforme los datos tabulares en formatos textuales adecuados.
-3. **Base de Datos Vectorizada:** Crear una base de datos vectorizada en formato `.parquet` que contenga las representaciones serializadas de los datos textuales, optimizada para la ingesta del modelo.
+2. **Serialización de datos tabulares:** Mapear las columnas originales hacia los bloques semánticos y desarrollar un proceso serialización de texto que transforme los datos tabulares en secuencias de texto adecuados para modelos de lenguaje pre-entrenados.
+3. **Consolidación del conjunto de datos:** Consolidar el conjunto de datos vectorizado en formato `.parquet` que contenga las representaciones serializadas de los datos textuales, optimizada para la ingesta del modelo.
 
-* *Para el fundamento académico y el diseño del sistema moderno, los detalles se encuentran en:* `ElProtocolodeInvestigacion.md` *y* `Metodologia_arquitectura.md`.
+* Para el fundamento académico y el diseño inicial del proyecto: `ElProtocolodeInvestigacion.md`. Los detalles del sistema moderno actual se encuentran en: `Metodologia_arquitectura.md`.
 
 ---
 
@@ -57,19 +57,31 @@ El ciclo de vida del dato se bifurca para satisfacer los entregables de ambos ej
     * `[x]` Definición de Arquitectura SOTA (Bi-Encoder + Cross-Encoder).
     * `[x]` Destilación de requerimientos de Consultoría.
 
-* **Fase 2: Análisis Exploratorio Orientado a Objetivos de Tesis y Consultoría `[ ]`**
+* **Fase 2: Análisis Exploratorio Orientado a Objetivos de Tesis y Consultoría `[x]`**
 **Objetivos por notebook**:
 Caracterización de columnas, Calidad para Serialización y Mapeo a Bloques Semánticos
     * `[x]` EDA Clínico / Comorbilidades (`EDA_Comorbilidad.ipynb`).
     * `[x]` EDA Trabajo Social (`EDA_TrabajoSocial.ipynb`).
     * `[x]` EDA Facturación / Econo (`EDA_Econo.ipynb`).
-    * `[parcial]` Reporte de hallazgos (`Reporte_BasesdeDatos_INER.md`).
+    * `[x]` Reporte de hallazgos. Disponible en: (`Reporte_INER.pdf`)
 
 * **Fase 3: Entregables de Datos (Consultoría) `[ ]`**
-    * `[ parcial ]` Construcción del `Diccionario_Datos_final.csv` (usando el modelo de etiquetas [Definición, Auditoría, Consolidación]). Ya se tienen propuestas para este archivo, consultar `04_Diccionario_Datos_Objetivo.csv` para ver la estructura propuesta.
-    * `[ ]` Script de consolidación relacional (Polars).
-    * `[ ]` Reporte de metodologías de comparación sintáctica.
+    * `[ parcial ]` Construcción del **Diccionario_Datos**. Ya se tienen propuestas para este archivo, consultar `Contexto_Consultoria_INER` para ver la estructura propuesta.
+    * `[parcial]` Script del pipeline de limpieza y consolidación de la base de datos final relacional (módulos sueltos en notebooks).
+    * `[x]` Reporte de metodología de comparación sintáctica (incluido dentro de `Reporte_INER.pdf`).
 
 * **Fase 4: Implementación Neuronal (Tesis) `[ ]`**
-    * `[ ]` Extracción de Verdad Base (Fase 0) mediante análisis de duplicados.
+    * `[x]` Extracción de Verdad Base mediante análisis de duplicados (cubierto en `Reporte_INER.pdf``).
     * `[ ]` Data Augmentation y Entrenamiento SBERT.
+
+## 6. Artefactos y Rutas Externas al Repo
+
+### Manuscrito de Tesis (LaTeX)
+- **Fuente:** `~/Documents/Maestria/Tesis/Tesis_Latex/Tesis_UzielLujan.tex`
+- **PDF compilado:** `~/Documents/Maestria/Tesis/Tesis_Latex/Tesis_Uziel_EscritoActual.pdf`
+- **Estructura:** `Capitulos/`, `Figuras/`, `Resultados/`, `Bibliografia/`, `Preambulo.tex`
+
+### Reporte de Consultoría (LaTeX)
+- **Fuente:** `~/Documents/Maestria/Tesis/Reporte_Consultoría/Reporte_INER.tex`
+- **PDF compilado:** `~/Documents/Maestria/Tesis/Reporte_Consultoría/Reporte_INER.pdf`
+- **Estructura:** `Capitulos/`, `Figuras/`, `Resultados/`, `Bibliografia/`, `Preambulo.tex`

@@ -64,7 +64,7 @@ La arquitectura es inherentemente robusta a la dispersión de datos (sparsity). 
     ```
     *Justificación:* Si un bloque entero (en este caso, el Clínico) carece de datos, **se omite por completo de la secuencia**. El mecanismo de atención del modelo se adapta dinámicamente, saltando del *bloque identidad demográfica* al *bloque geográfico* sin desperdiciar tokens de procesamiento.
 
-### 2.2 Estructura de Datos Serializados y Gestión de Etiquetas**
+### 2.2 Estructura de Datos Serializados y Gestión de Etiquetas
 
 Para la transición entre la fase de limpieza de datos crudos y la ingesta en el pipeline del modelo (PyTorch/Hugging Face), el sistema abandona el formato tabular tradicional CSV en favor del estándar Apache Parquet (`.parquet`). Esta decisión arquitectónica se fundamenta en su compresión columnar y su capacidad de *memory-mapping*. Esto previene la saturación de los 8GB de memoria RAM disponibles en el entorno local, permitiendo que la GPU se dedique exclusivamente al procesamiento de tensores durante el entrenamiento.
 

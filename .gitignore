@@ -20,3 +20,10 @@ dist/
 .DS_Store
 *.png
 *.jpg
+
+# Obsidian
+.obsidian/
+.trash/
+
+# Claude context
+CLAUDE.md
