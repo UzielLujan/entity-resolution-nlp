@@ -24,6 +24,7 @@ entity-resolution-nlp/
         │
         ├── data/
         │   ├── __init__.py
+        │   ├── preprocessing.py ← limpieza de CSVs crudos (Perfiles A y B)
         │   ├── dataset.py      ← serialización + etiquetado + guardado .parquet
         │   ├── augmentation.py ← transformaciones on-the-fly durante entrenamiento
         │   └── splitting.py    ← partición train/val/test a nivel de entidad
@@ -69,6 +70,11 @@ Los datos **nunca** entran al repo. Viven en `~/Data/INER/` fuera de git.
 ```text
 raw CSVs (~/Data/INER/raw/)
    │
+   ↓  data/preprocessing.py  — una vez, offline
+   │  · Perfil A: M1→M2→M3→M4a→M4b→M4c→M5 (base analítica INER)
+   │  · Perfil B: M1→M2→M4a→M4b (mínima intervención para serialización)
+   │  · salida: ~/Data/INER/processed/<csv>_clean.csv
+   │
    ↓  data/dataset.py  — una vez, offline
    │  · serializa cada registro tabular a secuencia de texto con tokens especiales
    │  · asigna entity_id usando los pares del ground_truth/
@@ -112,6 +118,19 @@ build_dataset(csv_paths, ...)        # pipeline completo → .parquet
 ### `augmentation.py` — transformaciones on-the-fly
 
 La aumentación de datos se aplica durante el entrenamiento y no se persiste en disco. Esto evita almacenar múltiples versiones alteradas de cada registro y garantiza variabilidad estocástica en cada época. Los operadores implementados son los descritos en la metodología: span deletion, block shuffling, typo injection, attribute masking e input swapping.
+
+### `preprocessing.py` — limpieza modular con perfiles A y B
+
+El pipeline de limpieza se implementa como un catálogo de funciones independientes y componibles (M1–M8), cada una respondiendo a un hallazgo concreto del EDA documentado en `5_Resumen_Comparativo.tex`. Se exponen dos perfiles de ejecución:
+
+- **Perfil A** (`run_profile_a`): limpieza completa orientada al entregable del INER — corrige encoding, caracteres, tipos, columnas y normalización de nombres (M1→M2→M3→M4a→M4b→M4c→M5). Los módulos M7 (duplicados intra-CSV) y M8 (ligado inter-CSV) no son parte de la limpieza: producen el ground truth y pertenecen a `dataset.py`.
+- **Perfil B** (`run_profile_b`): mínima intervención para la serialización de la tesis — aplica solo M1, M2, M4a y M4b. Preserva el ruido léxico deliberadamente para que el modelo de Record Linkage aprenda a superarlo sin sesgo de limpieza.
+
+El módulo vive en `src/record_linkage/data/preprocessing.py` (importable como parte del paquete) y se invoca desde `scripts/run_preprocessing.py` para ejecución offline local o en HPC.
+
+La separación entre `preprocessing.py` y `dataset.py` es intencional: la limpieza es una operación sobre los CSVs crudos independiente del esquema de serialización. `dataset.py` recibe los CSVs ya limpios del Perfil B y los convierte a secuencias de texto.
+
+---
 
 ### Separación `mnrl.py` / `bce.py`
 
