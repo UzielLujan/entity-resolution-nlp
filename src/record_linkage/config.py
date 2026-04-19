@@ -39,6 +39,12 @@ GROUND_TRUTH_DIR: Path = DATA_ROOT / "ground_truth"
 MODELS_DIR:       Path = DATA_ROOT / "models"
 EMBEDDINGS_DIR:   Path = DATA_ROOT / "embeddings"
 
+# ── Outputs del proyecto (figuras, métricas, evaluación) ────────────────────
+OUTPUTS_DIR:      Path = DATA_ROOT / "outputs"
+FIGURES_DIR:      Path = OUTPUTS_DIR / "figures"
+TRAINING_DIR:     Path = OUTPUTS_DIR / "training"
+EVALUATION_DIR:   Path = OUTPUTS_DIR / "evaluation"
+
 # ── Archivos de datos fuente ─────────
 RAW_FILES = {
     "econo":         RAW_DIR / "INER_COVID19_CostoPacientes_Econo.csv",
@@ -65,6 +71,10 @@ def check_paths() -> None:
         "GROUND_TRUTH_DIR": GROUND_TRUTH_DIR,
         "MODELS_DIR":      MODELS_DIR,
         "EMBEDDINGS_DIR":  EMBEDDINGS_DIR,
+        "OUTPUTS_DIR":    OUTPUTS_DIR,
+        "FIGURES_DIR":    FIGURES_DIR,
+        "TRAINING_DIR":   TRAINING_DIR,
+        "EVALUATION_DIR": EVALUATION_DIR,
     }
     print("── Rutas del proyecto ──────────────────────")
     for name, path in paths.items():
