@@ -1,8 +1,12 @@
 # Decisiones de diseño — `entity-resolution-nlp`
 
-Este documento registra las decisiones arquitectónicas del proyecto de tesis y el razonamiento detrás de cada una.
+Este documento registra las decisiones arquitectónicas del proyecto de tesis
+y el razonamiento detrás de cada una.
+
+La nota personal sobre entorno y dependencias modernas se encuentra en [[entorno_y_dependencias.md]] y complementa la justificación de `pyproject.toml`, `micromamba` y `uv`.
 
 ---
+
 ## Estructura de carpetas
 
 ```text
@@ -12,10 +16,22 @@ entity-resolution-nlp/
 ├── .gitignore
 ├── pyproject.toml          ← definición del paquete y dependencias (uv)
 │
+├── train_biencoder.sh      ← script de lanzamiento SLURM — Etapa 1
+├── train_crossencoder.sh   ← script de lanzamiento SLURM — Etapa 2
+│   (los .sh DEBEN vivir en la raíz del repo; requerimiento del Lab-SB
+│    para que --chdir funcione correctamente y las rutas no se rompan)
+│
+├── logs/                   ← outputs de SLURM (en .gitignore, solo carpeta vacía en git)
 ├── docs/                   ← markdowns de contexto y decisiones de diseño
 ├── notebooks/              ← exploración y prototipado (no código de producción)
-├── scripts/                ← entrenamiento, inferencia y preprocesamiento (HPC/local)
 ├── tests/                  ← unit tests
+│
+├── scripts/                ← scripts Python invocados desde .sh o local
+│   ├── download_model.py   ← descarga modelos HuggingFace localmente antes de subir al cluster
+│   ├── run_preprocessing.py
+│   ├── run_dataset.py
+│   ├── train_biencoder.py
+│   └── train_crossencoder.py
 │
 └── src/
     └── record_linkage/     ← paquete instalable principal
@@ -49,19 +65,28 @@ entity-resolution-nlp/
 
 ## Separación repo / datos
 
-Los datos **nunca** entran al repo. Viven en `~/Data/INER/` fuera de git.
+Los datos **nunca** entran al repo. Viven en `~/Data/INER/` fuera de git,
+tanto en local como en el cluster (con rutas distintas resueltas vía `.env`).
 
 ```text
 ~/Projects/entity-resolution-nlp/   ← repo git (código, configs, docs)
 ~/Data/INER/
-    ├── raw/           ← CSVs originales del INER (intocables)
-    ├── processed/     ← outputs exploratorios del EDA
-    ├── ground_truth/  ← pares candidatos sujetos a revisión manual
-    ├── models/        ← checkpoints entrenados (.pt, .bin)
-    └── embeddings/    ← vectores precalculados (.faiss)
+    ├── raw/                ← CSVs originales del INER
+    ├── processed/          ← CSVs limpios y dataset.parquet
+    ├── ground_truth/       ← pares candidatos sujetos a revisión manual
+    ├── models/
+    │   ├── pretrained/     ← pesos descargados de HuggingFace (BETO, RoBERTa-bne)
+    │   │                     se descargan local y se transfieren al cluster
+    │   └── checkpoints/    ← checkpoints entrenados por nosotros (.pt, .bin)
+    ├── embeddings/         ← vectores precalculados (.faiss)
+    └── outputs/
+        ├── figures/     ← todas las visualizaciones (EDA, curvas de aprendizaje, etc.)
+        ├── training/    ← métricas numéricas del entrenamiento (.json, .csv)
+        └── evaluation/  ← reportes de clasificación (.txt, .csv, .json)
 ```
 
-`config.py` actúa como puente entre el repo y los datos externos mediante variables de entorno, con fallback automático a `~/Data/INER` si no existe `.env`.
+`config.py` actúa como puente entre el repo y los datos externos mediante
+variables de entorno, con fallback automático a `~/Data/INER` si no existe `.env`.
 
 ---
 
@@ -95,17 +120,67 @@ raw CSVs (~/Data/INER/raw/)
 
 ---
 
+## Flujo local → cluster (Lab-SB CIMAT)
+
+El cluster Lab-SB no tiene acceso a internet en los nodos de cómputo.
+Todo modelo, tokenizer y dato debe estar disponible localmente en el cluster
+antes de lanzar cualquier job.
+
+```text
+1. DESCARGAR MODELO (local, con internet)
+   python scripts/download_model.py \
+       --model_name "dccuchile/bert-base-spanish-wwm-cased" \
+       --output_dir "~/Data/INER/models/pretrained/BETO"
+
+2. TRANSFERIR DATOS Y MODELO AL CLUSTER (local → cluster)
+   rsync -avz ~/Data/INER/processed/   labcimatexterno:~/Data/INER/processed/
+   rsync -avz ~/Data/INER/models/      labcimatexterno:~/Data/INER/models/
+   # Archivos pequeños (código): Dolphin vía SFTP
+
+3. LANZAR JOB EN EL CLUSTER
+   cd ~/entity-resolution-nlp
+   sbatch train_biencoder.sh "~/Data/INER/models/pretrained/BETO" "run_01" 5
+
+4. MONITOREAR
+   squeue -u est_posgrado_uziel.lujan    # ver cola (R=Running, PD=Pending)
+   tail -f logs/train_biencoder-JOB_ID.log
+
+5. BAJAR RESULTADOS (cluster → local)
+   rsync -avz labcimatexterno:~/Data/INER/outputs/     ~/Data/INER/outputs/
+   rsync -avz labcimatexterno:~/Data/INER/models/checkpoints/  ~/Data/INER/models/checkpoints/
+```
+
+**Notas críticas del Lab-SB:**
+- Los `.sh` deben vivir en la raíz del repo — `--chdir` en SLURM los requiere ahí.
+- Usar `torchrun --nproc_per_node=2` para aprovechar las 2 GPUs Titan RTX por nodo.
+- El entorno en el cluster usa Anaconda: `conda run -n env python script.py`.
+- Nunca imprimir a pantalla en ejecuciones — todo debe ir a archivos de log.
+- No existen respaldos externos — la integridad de pesos y datasets es responsabilidad del usuario.
+- Cuota de maestría: máximo 4 nodos GPU simultáneos (`est_posgrado_uziel.lujan`).
+
+---
+
 ## Decisiones tomadas y su justificación
 
 ### `src` layout con paquete `record_linkage/`
 
-Usar `src/record_linkage/` en lugar de módulos sueltos en `src/` permite instalar el paquete en modo editable (`uv pip install -e .`), lo que hace que Python lo trate igual que cualquier dependencia instalada. Esto elimina el uso de `sys.path` en notebooks y garantiza imports consistentes desde cualquier contexto: notebook, script, test o cluster HPC.
+Usar `src/record_linkage/` en lugar de módulos sueltos en `src/` permite
+instalar el paquete en modo editable (`uv pip install -e .`), lo que hace
+que Python lo trate igual que cualquier dependencia instalada. Esto elimina
+el uso de `sys.path` en notebooks y garantiza imports consistentes desde
+cualquier contexto: notebook, script, test o cluster HPC.
 
-El nombre `record_linkage` es el paquete Python; `entity-resolution-nlp` es el nombre del repo en GitHub. Son capas distintas — igual que `scikit-learn` (repo) vs `sklearn` (paquete).
+El nombre `record_linkage` es el paquete Python; `entity-resolution-nlp`
+es el nombre del repo en GitHub. Son capas distintas — igual que `scikit-learn`
+(repo) vs `sklearn` (paquete).
 
 ### `dataset.py` — serialización y etiquetado consolidados
 
-Inicialmente se consideraron dos módulos separados (`serialization.py` y `labeling.py`), pero se consolidaron en `dataset.py` por una razón crítica: `labeling.py` depende de que los `record_id` sean consistentes con los generados por `serialization.py`. Al tenerlos en el mismo módulo, los IDs se generan y consumen en el mismo contexto, eliminando el riesgo de desincronización silenciosa entre archivos intermedios.
+Inicialmente se consideraron dos módulos separados (`serialization.py` y
+`labeling.py`), pero se consolidaron en `dataset.py` por una razón crítica:
+`labeling.py` depende de que los `record_id` sean consistentes con los generados
+por `serialization.py`. Al tenerlos en el mismo módulo, los IDs se generan y
+consumen en el mismo contexto, eliminando el riesgo de desincronización silenciosa.
 
 Internamente `dataset.py` mantiene funciones separadas con responsabilidades claras:
 
@@ -117,34 +192,47 @@ build_dataset(csv_paths, ...)        # pipeline completo → .parquet
 
 ### `augmentation.py` — transformaciones on-the-fly
 
-La aumentación de datos se aplica durante el entrenamiento y no se persiste en disco. Esto evita almacenar múltiples versiones alteradas de cada registro y garantiza variabilidad estocástica en cada época. Los operadores implementados son los descritos en la metodología: span deletion, block shuffling, typo injection, attribute masking e input swapping.
+La aumentación de datos se aplica durante el entrenamiento y no se persiste en
+disco. Esto evita almacenar múltiples versiones alteradas de cada registro y
+garantiza variabilidad estocástica en cada época. Los operadores implementados
+son: span deletion, block shuffling, typo injection, attribute masking e
+input swapping.
 
 ### `preprocessing.py` — limpieza modular con perfiles A y B
 
-El pipeline de limpieza se implementa como un catálogo de funciones independientes y componibles (M1–M8), cada una respondiendo a un hallazgo concreto del EDA documentado en `5_Resumen_Comparativo.tex`. Se exponen dos perfiles de ejecución:
+El pipeline de limpieza se implementa como un catálogo de funciones independientes
+y componibles (M1–M8), cada una respondiendo a un hallazgo concreto del EDA.
+Se exponen dos perfiles de ejecución:
 
-- **Perfil A** (`run_profile_a`): limpieza completa orientada al entregable del INER — corrige encoding, caracteres, tipos, columnas y normalización de nombres (M1→M2→M3→M4a→M4b→M4c→M5). Los módulos M7 (duplicados intra-CSV) y M8 (ligado inter-CSV) no son parte de la limpieza: producen el ground truth y pertenecen a `dataset.py`.
-- **Perfil B** (`run_profile_b`): mínima intervención para la serialización de la tesis — aplica solo M1, M2, M4a y M4b. Preserva el ruido léxico deliberadamente para que el modelo de Record Linkage aprenda a superarlo sin sesgo de limpieza.
-
-El módulo vive en `src/record_linkage/data/preprocessing.py` (importable como parte del paquete) y se invoca desde `scripts/run_preprocessing.py` para ejecución offline local o en HPC.
-
-La separación entre `preprocessing.py` y `dataset.py` es intencional: la limpieza es una operación sobre los CSVs crudos independiente del esquema de serialización. `dataset.py` recibe los CSVs ya limpios del Perfil B y los convierte a secuencias de texto.
-
----
+- **Perfil A** (`run_profile_a`): limpieza completa orientada al entregable del
+  INER (M1→M2→M3→M4a→M4b→M4c→M5).
+- **Perfil B** (`run_profile_b`): mínima intervención para la serialización de la
+  tesis (M1→M2→M4a→M4b). Preserva el ruido léxico deliberadamente para que el
+  modelo aprenda a superarlo sin sesgo de limpieza.
 
 ### Separación `mnrl.py` / `bce.py`
 
 Las dos etapas del pipeline tienen objetivos de entrenamiento distintos:
 
-- **Etapa 1 (Bi-Encoder):** optimizada con MNRL para construir un espacio métrico adecuado para búsqueda vectorial eficiente (alto recall).
-- **Etapa 2 (Cross-Encoder):** optimizada con BCE como clasificador binario de alta precisión sobre los candidatos recuperados.
+- **Etapa 1 (Bi-Encoder):** optimizada con MNRL para construir un espacio métrico
+  adecuado para búsqueda vectorial eficiente (alto recall).
+- **Etapa 2 (Cross-Encoder):** optimizada con BCE como clasificador binario de alta
+  precisión sobre los candidatos recuperados.
 
-Mantenerlos en módulos separados refleja esta separación conceptual y facilita iterar sobre cada etapa de forma independiente.
+### `.sh` en la raíz del repo
+
+Los scripts de lanzamiento SLURM deben vivir en la raíz del proyecto en el
+cluster. La directiva `--chdir` de SLURM fija ese punto como directorio de
+trabajo, y todas las rutas relativas dentro del `.sh` (incluyendo `logs/`,
+`scripts/`, `src/`) se resuelven desde ahí. Colocarlos en una subcarpeta
+como `scripts/` rompe esta resolución sin configuración adicional no probada.
 
 ---
 
 ## Pendientes de diseño
 
-- Definir si `scripts/` tendrá un script por etapa o un pipeline unificado.
+- Definir si el entrenamiento en el cluster usará 1 o 2 GPUs por nodo
+  (DDP con `torchrun --nproc_per_node=2` vs entrenamiento estándar).
 - Decidir la estrategia de logging y experiment tracking (MLflow, W&B, etc.)
-- Confirmar compatibilidad arquitectónica con el cluster HPC de CIMAT (SLURM).
+- Crear el entorno de Conda en el cluster y verificar compatibilidad con
+  las versiones de CUDA disponibles en los nodos g-0-X.

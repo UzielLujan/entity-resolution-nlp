@@ -13,7 +13,7 @@ Los tres objetivos y productos finales esperados son:
 2. **Base de Datos Consolidada:** Consolidar las distintas tablas dispersas en una sola base de datos relacional para que esté disponible a sistemas de procesamiento automático.
 3. **Métodos de Comparación:** Desarrollo de métodos de comparación de cadenas de texto de longitudes similares, centrados en nombres propios.
 
-*Los detalles operativos están en:* `Contexto_Consultoria_INER.md`
+*Los detalles operativos están en:* `Contexto_Consultoria_INER.md` ([[Contexto_Consultoria_INER.md]])
 
 ---
 
@@ -26,7 +26,7 @@ Los objetivos y productos que requiere el modelo de tesis son:
 2. **Serialización de datos tabulares:** Mapear las columnas originales hacia los bloques semánticos y desarrollar un proceso serialización de texto que transforme los datos tabulares en secuencias de texto adecuados para modelos de lenguaje pre-entrenados.
 3. **Consolidación del conjunto de datos:** Consolidar el conjunto de datos vectorizado en formato `.parquet` que contenga las representaciones serializadas de los datos textuales, optimizada para la ingesta del modelo.
 
-* Para el fundamento académico y el diseño inicial del proyecto: `ElProtocolodeInvestigacion.md`. Los detalles del sistema moderno actual se encuentran en: `Metodologia_arquitectura.md`.
+* Para el fundamento académico y el diseño inicial del proyecto: `ElProtocolodeInvestigacion.md` ([[ElProtocolodeInvestigacion.md]]). Los detalles del sistema moderno actual se encuentran en: `Metodologia_arquitectura.md` ([[Metodologia_arquitectura.md]]).
 
 ---
 
@@ -66,7 +66,7 @@ Caracterización de columnas, Calidad para Serialización y Mapeo a Bloques Sem�
     * `[x]` Reporte de hallazgos. Disponible en: (`Reporte_INER.pdf`)
 
 * **Fase 3: Entregables de Datos (Consultoría) `[ ]`**
-    * `[ parcial ]` Construcción del **Diccionario_Datos**. Ya se tienen propuestas para este archivo, consultar `Contexto_Consultoria_INER` para ver la estructura propuesta.
+    * `[ parcial ]` Construcción del **Diccionario_Datos**. Ya se tienen propuestas para este archivo, consultar `Contexto_Consultoria_INER` ([[Contexto_Consultoria_INER.md]]) para ver la estructura propuesta.
     * `[parcial]` Script del pipeline de limpieza y consolidación de la base de datos final relacional (módulos sueltos en notebooks).
     * `[x]` Reporte de metodología de comparación sintáctica (incluido dentro de `Reporte_INER.pdf`).
 
