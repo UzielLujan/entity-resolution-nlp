@@ -1,11 +1,12 @@
 """
 Pipeline de limpieza y preprocesamiento de los CSVs crudos del INER.
 
-Módulos M1–M6, organizados en dos perfiles de ejecución:
-  Perfil A — base analítica completa para el INER (M1→M2→M3→M4a→M4b→M4c→M5)
-  Perfil B — mínima intervención para serialización de tesis (M1→M2→M4a→M4b)
+Módulos M0–M7, organizados en tres perfiles de ejecución:
+  Perfil A  — base analítica completa para el INER (M0→M1→M2→M3→M4→M5→M6→M7)
+  Perfil B1 — mínima intervención para tesis (M1→M4 si TS)
+  Perfil B2 — limpieza de chars + concat + renombrado (M1→M2→M4 si TS→M7)
 
-M7 (duplicados intra-CSV) y M8 (ligado inter-CSV) pertenecen a dataset.py.
+M7 es siempre opcional y corre al final para no romper referencias de columnas previas.
 """
 
 import re
@@ -48,7 +49,9 @@ def m0_normalize_text(df: pd.DataFrame) -> pd.DataFrame:
 # Perfil B: '?' → 'N' (NFD posterior elimina la tilde de Ñ de todas formas;
 #           consistente con normalizar_nombre_v2 del notebook Duplicados_INER)
 
-def m1_fix_encoding(df: pd.DataFrame, perfil: str = 'A') -> pd.DataFrame:
+def m1_fix_encoding(df: pd.DataFrame, perfil: str = 'A', csv: str = 'comorbilidad') -> pd.DataFrame:
+    if csv != 'comorbilidad':
+        return df.copy()
     df = df.copy()
     reemplazo = 'Ñ' if perfil == 'A' else 'N'
     df['nombre'] = df['nombre'].str.replace('?', reemplazo, regex=False)
@@ -79,7 +82,7 @@ def m1_fix_encoding(df: pd.DataFrame, perfil: str = 'A') -> pd.DataFrame:
 #   - Punto '.', barra '/', '|'
 #
 # NOTA: M2 opera sobre los campos de nombre crudos (pre-concatenación en TS).
-# La concatenación de los 3 campos de TS se hace en M4b, luego M5 normaliza.
+# La concatenación de los 3 campos de TS se hace en M4, luego M6 normaliza.
 
 def _limpiar_campo_nombre(texto: str, csv: str) -> str:
     if pd.isna(texto):
@@ -111,7 +114,7 @@ def m2_clean_nombres(df: pd.DataFrame, csv: str) -> pd.DataFrame:
 
 
 # =============================================================================
-# M3 — Corrección de tipos de datos  |  CSV: los 3
+# M3 — Corrección de tipos de datos  |  CSV: los 3  |  Solo Perfil A
 # =============================================================================
 #
 # Mapeo de conversiones extraído de EDAs y reportes LaTeX:
@@ -128,16 +131,20 @@ def m2_clean_nombres(df: pd.DataFrame, csv: str) -> pd.DataFrame:
 # Trabajo Social:
 #   - `FECHA DE ELABORACIÓN`, `FECHA DE NACIMIENTO`: string → datetime
 #     (formato mixto, dayfirst=True)
-#   - `EDAD`: texto libre (ej. "69 Años", "61 Años") → extraer entero con extraer_anios()
+#   - `EDAD`: texto libre (ej. "69 Años", "61 Años") → extraer entero con _extraer_anios()
 #   - `TOTAL DE PUNTOS`: string numéricos → int64
 #
+# NOTA — Fechas al exportar a CSV:
+#   datetime incluye componente de hora (00:00:00) sin valor informativo.
+#   Al exportar la base consolidada del Perfil A usar .dt.strftime('%Y-%m-%d')
+#   para columnas de fecha antes de to_csv().
+#
 # NOTA ARQUITECTÓNICA — Columnas binarias (Perfil A vs Perfil B):
-#   Para serialización en dataset.py, las columnas binarias tienen dos opciones según
-#   el perfil de ejecución:
-#   - Perfil B (mínima intervención): int64 (0/1) — más compacto, directo
-#   - Perfil A (análisis completo, opcional): bool + representación semántica en español
-#     ("Verdadero"/"Falso") para que modelos de lenguaje en español capturen la
-#     semántica de presencia/ausencia. Ver función _convertir_binarias_bool_es() abajo.
+#   Para serialización en dataset.py, las columnas binarias tienen dos opciones:
+#   - Perfil B: int64 (0/1) — más compacto, directo
+#   - Perfil A (opcional): representación semántica en español ("Verdadero"/"Falso")
+#     para que modelos de lenguaje capturen la semántica de presencia/ausencia.
+#     Implementar en dataset.py durante serialize_record(), no aquí.
 
 def _extraer_anios(texto):
     if pd.isna(texto):
@@ -149,25 +156,6 @@ def _extraer_anios(texto):
     if m2:
         return int(m2.group(1))
     return None
-
-# NOTA — Enriquecimiento semántico para serialización
-# def _convertir_binarias_bool_es(df: pd.DataFrame, cols_binarias: list) -> pd.DataFrame:
-#     """
-#     Convierte columnas binarias (0.0/1.0 o 0/1) a strings en español ("Verdadero"/"Falso")
-#     para enriquecimiento semántico durante serialización.
-#
-#     UBICACIÓN CORRECTA: Esta función debería implementarse en dataset.py durante el
-#     proceso de serialize_record(), no en preprocessing.py. Pertenece a la capa de
-#     enriquecimiento semántico para entrada a modelos de lenguaje en español (BETO,
-#     RoBERTa-bne), que capturan mejor la presencia/ausencia de comorbilidades como
-#     tokens semánticos completos en lugar de dígitos.
-#
-#     Ventaja: Mejora la representación en el espacio vectorial de SBERT y DITTO.
-#     """
-#     for col in cols_binarias:
-#         if col in df.columns:
-#             df[col] = df[col].astype(bool).map({True: 'Verdadero', False: 'Falso'})
-#     return df
 
 def m3_fix_types(df: pd.DataFrame, csv: str) -> pd.DataFrame:
     df = df.copy()
@@ -196,16 +184,103 @@ def m3_fix_types(df: pd.DataFrame, csv: str) -> pd.DataFrame:
 
 
 # =============================================================================
-# M4a — Renombrado de columnas  |  CSV: los 3
+# M4 — Concatenación de nombre completo  |  CSV: Trabajo Social
 # =============================================================================
 #
-# Limpieza de nombres: eliminar caracteres especiales (espacios, slashes, acentos)
-# y desambiguar abreviaciones oscuras. Válido para ambos perfiles.
+# Trabajo Social — concatenación de los 3 campos de nombre (EDA_TS cells 11, 23
+# y Duplicados_INER cell 10). Opera sobre nombres originales (pre-M7).
 #
-# Beneficios:
-#   - Problema técnico: caracteres especiales afectan tokenización en serialización
-#   - Mejora semántica: abreviaciones oscuras (eaperge, tephap) → tokens claros
-#   - No es intervención mayor: solo limpieza de nomenclatura
+# Comorbilidad — `obesidad` vs `obesidad1` (EDA_Comorbilidad cells 39-40):
+#   Difieren en ~13.7% de registros. `obesidad` aplica criterio clínico más amplio.
+#   Decisión de cuál conservar: pendiente de criterio clínico del INER.
+
+def m4_concat_nombre_ts(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df['NOMBRE_COMPLETO'] = (
+        df['APELLIDO PATERNO'].fillna('') + ' ' +
+        df['APELLIDO MATERNO'].fillna('') + ' ' +
+        df['NOMBRE'].fillna('')
+    ).str.strip()
+    return df
+
+
+# =============================================================================
+# M5 — Eliminación de columnas redundantes  |  CSV: Comorbilidad y Trabajo Social
+# =============================================================================
+#
+# Comorbilidad (EDA_Comorbilidad cell 31):
+#   - `dx2`, `dx3`, `dx4`: duplicados exactos (100% coincidencia registro a registro)
+#     de `cie102`, `cie103`, `cie104` incluyendo mismos nulos → eliminar.
+#
+# Trabajo Social (EDA_TS cells 31-33, Duplicados_INER cell 2):
+#   - `Unnamed: 19`: 98.3% nulos, artefacto del sistema
+#   - `AÑO`: redundante con `FECHA DE ELABORACIÓN`, traslapes entre años consecutivos
+#   - `FILA`: índice heredado de los 4 archivos anuales originales (valores 0–6107,
+#     aparece 1-4 veces según cuántos archivos contenían ese renglón)
+
+_COLS_ELIMINAR = {
+    'comorbilidad':   ['dx2', 'dx3', 'dx4'],
+    'trabajo_social': ['AÑO', 'FILA'],
+}
+
+def m5_drop_columns(df: pd.DataFrame, csv: str) -> pd.DataFrame:
+    df = df.copy()
+    if csv == 'trabajo_social':
+        df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+    cols = _COLS_ELIMINAR.get(csv, [])
+    return df.drop(columns=[c for c in cols if c in df.columns])
+
+
+# =============================================================================
+# M6 — Normalización de nombres  |  CSV: los 3  |  Solo Perfil A
+# =============================================================================
+#
+# Función definitiva extraída de Duplicados_INER (normalizar_nombre_v2).
+# Integra el efecto de M1 + M2 en un paso de normalización para comparación.
+# En el pipeline M1 y M2 ya se aplicaron antes, por lo que aquí
+# el replace('?', 'N') es redundante pero inocuo.
+#
+# Aplicación por CSV:
+#   - Comorbilidad: sobre `nombre` (ya corregido por M1 y M2)
+#   - Económico:    sobre `NOMBRE_DEL_PACIENTE` (ya limpiado por M2)
+#   - Trabajo Social: sobre `NOMBRE_COMPLETO` (producido por M4)
+
+def _normalizar_nombre_v2(texto: str) -> str:
+    if pd.isna(texto):
+        return ''
+    s = str(texto).upper().strip()
+    s = s.replace('?', 'N')
+    s = ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
+    s = re.sub(r'[^A-Z ]', '', s)
+    return ' '.join(sorted(s.split()))
+
+_COL_NOMBRE = {
+    'comorbilidad':   'nombre',
+    'econo':          'NOMBRE_DEL_PACIENTE',
+    'trabajo_social': 'NOMBRE_COMPLETO',
+}
+
+def m6_normalizar_nombres(df: pd.DataFrame, csv: str) -> pd.DataFrame:
+    df = df.copy()
+    col = _COL_NOMBRE[csv]
+    df[f'{col}_norm'] = df[col].apply(_normalizar_nombre_v2)
+    return df
+
+
+# =============================================================================
+# M7 — Renombrado de columnas  |  CSV: los 3  |  Opcional, siempre al final
+# =============================================================================
+#
+# Desambigua abreviaciones raras y elimina caracteres especiales de los nombres
+# de columna (espacios, slashes, acentos) para mejorar legibilidad e interpretación
+#
+# IMPORTANTE: debe correr siempre al final del pipeline. Cualquier módulo anterior
+# que referencie columnas por nombre asume los nombres originales del CSV crudo.
+#
+# Beneficios principales:
+#   - Abreviaciones raras → tokens semánticos (eaperge, tephap, comorbi, etc.)
+#   - Caracteres especiales en nombres de columna → snake_case limpio
+#   - Mejora la calidad de los tokens generados durante serialización en dataset.py
 
 _RENOMBRAR = {
     'comorbilidad': {
@@ -236,133 +311,61 @@ _RENOMBRAR = {
     }
 }
 
-def m4a_rename_columns(df: pd.DataFrame, csv: str) -> pd.DataFrame:
+def m7_rename_columns(df: pd.DataFrame, csv: str) -> pd.DataFrame:
     df = df.copy()
     renombres = _RENOMBRAR.get(csv, {})
     return df.rename(columns=renombres)
 
 
 # =============================================================================
-# M4b — Combinación de columnas  |  CSV: Comorbilidad y Trabajo Social
-# =============================================================================
-#
-# Comorbilidad — `obesidad` vs `obesidad1` (EDA_Comorbilidad cells 39-40):
-#   Difieren en ~13.7% de registros. `obesidad` aplica criterio clínico más amplio.
-#   Decisión de cuál conservar: pendiente de criterio clínico del INER.
-#
-# Trabajo Social — concatenación de los 3 campos de nombre (EDA_TS cells 11, 23
-# y Duplicados_INER cell 10):
-
-def m4b_concat_nombre_ts(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    df['NOMBRE_COMPLETO'] = (
-        df['APELLIDO PATERNO'].fillna('') + ' ' +
-        df['APELLIDO MATERNO'].fillna('') + ' ' +
-        df['NOMBRE'].fillna('')
-    ).str.strip()
-    return df
-
-
-# =============================================================================
-# M4c — Eliminación de columnas  |  CSV: Comorbilidad y Trabajo Social
-# =============================================================================
-#
-# Comorbilidad (EDA_Comorbilidad cell 31):
-#   - `dx2`, `dx3`, `dx4`: duplicados exactos (100% coincidencia registro a registro)
-#     de `cie102`, `cie103`, `cie104` incluyendo mismos nulos → eliminar.
-#
-# Trabajo Social (EDA_TS cells 31-33, Duplicados_INER cell 2):
-#   - `Unnamed: 19`: 98.3% nulos, artefacto del sistema
-#   - `AÑO`: redundante con `FECHA DE ELABORACIÓN`, traslapes entre años consecutivos
-#   - `FILA`: índice heredado de los 4 archivos anuales originales (valores 0–6107,
-#     aparece 1-4 veces según cuántos archivos contenían ese renglón)
-
-_COLS_ELIMINAR = {
-    'comorbilidad':   ['dx2', 'dx3', 'dx4'],
-    'trabajo_social': ['AÑO', 'FILA'],
-}
-
-def m4c_drop_columns(df: pd.DataFrame, csv: str) -> pd.DataFrame:
-    df = df.copy()
-    if csv == 'trabajo_social':
-        df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
-    cols = _COLS_ELIMINAR.get(csv, [])
-    return df.drop(columns=[c for c in cols if c in df.columns])
-
-
-# =============================================================================
-# M5 — Normalización de nombres  |  CSV: los 3  |  Solo Perfil A
-# =============================================================================
-#
-# Función definitiva extraída de Duplicados_INER cell 20 (normalizar_nombre_v2).
-# Integra el efecto de M1 + M2 en un paso de normalización para comparación.
-# En el pipeline de limpieza M1 y M2 ya se aplicaron antes, por lo que aquí
-# se omite el replace('?', 'N') si el CSV no es Comorbilidad.
-#
-# Aplicación por CSV:
-#   - Comorbilidad: sobre `nombre` (ya corregido por M1 y M2)
-#   - Económico:    sobre `NOMBRE_DEL_PACIENTE` (ya limpiado por M2)
-#   - Trabajo Social: sobre `NOMBRE_COMPLETO` (producido por M4b)
-#
-# NOTA: NO se aplica en Perfil B.
-
-def _normalizar_nombre_v2(texto: str) -> str:
-    if pd.isna(texto):
-        return ''
-    s = str(texto).upper().strip()
-    s = s.replace('?', 'N')
-    s = ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
-    s = re.sub(r'[^A-Z ]', '', s)
-    return ' '.join(sorted(s.split()))
-
-_COL_NOMBRE = {
-    'comorbilidad':   'nombre',
-    'econo':          'NOMBRE_DEL_PACIENTE',
-    'trabajo_social': 'NOMBRE_COMPLETO',
-}
-
-def m5_normalizar_nombres(df: pd.DataFrame, csv: str) -> pd.DataFrame:
-    df = df.copy()
-    col = _COL_NOMBRE[csv]
-    df[f'{col}_norm'] = df[col].apply(_normalizar_nombre_v2)
-    return df
-
-
-# =============================================================================
-# Perfiles de ejecución — Orquestación de módulos M1–M5
+# Perfiles de ejecución — Orquestación de módulos M0–M7
 # =============================================================================
 
 def run_profile_a(df: pd.DataFrame, csv: str) -> pd.DataFrame:
     """
     Perfil A — Base analítica completa para el INER.
-    Ejecución: M1 → M2 → M3 → M4a → M4b → M4c → M5
+    Ejecución: M0 → M1 → M2 → M3 → M4(si TS) → M5 → M6 → M7
 
-    Aplica limpieza exhaustiva incluyendo corrección de tipos, normalización
-    de nombres y eliminación de redundancias.
+    Limpieza exhaustiva: tipos, normalización de nombres, eliminación de
+    redundancias y renombrado semántico al final.
     """
-    df = m0_normalize_text(df)  # Normalización base opcional antes de M1 y M2
-    df = m1_fix_encoding(df, perfil='A')
+    df = m0_normalize_text(df)
+    df = m1_fix_encoding(df, perfil='A', csv=csv)
     df = m2_clean_nombres(df, csv)
     df = m3_fix_types(df, csv)
-    df = m4a_rename_columns(df, csv)
     if csv == 'trabajo_social':
-        df = m4b_concat_nombre_ts(df)
-    df = m4c_drop_columns(df, csv)
-    df = m5_normalizar_nombres(df, csv)
+        df = m4_concat_nombre_ts(df)
+    df = m5_drop_columns(df, csv)
+    df = m6_normalizar_nombres(df, csv)
+    df = m7_rename_columns(df, csv)
     return df
 
-def run_profile_b(df: pd.DataFrame, csv: str) -> pd.DataFrame:
-    """
-    Perfil B — Mínima intervención para serialización de tesis.
-    Ejecución: M1 → M2 → M4a → M4b
 
-    Preserva ruido léxico deliberadamente. El modelo aprenderá a superar
-    errores tipográficos, variaciones de formato y datos heterogéneos
-    sin sesgo de limpieza exhaustiva.
+def run_profile_b1(df: pd.DataFrame, csv: str) -> pd.DataFrame:
     """
-    df = m1_fix_encoding(df, perfil='B')
-    df = m2_clean_nombres(df, csv)
-    df = m4a_rename_columns(df, csv)
+    Perfil B1 — Mínima intervención.
+    Ejecución: M1 → M4(si TS)
+
+    Columnas conservan nombres originales del CSV crudo. Compatible con
+    SEMANTIC_BLOCKS de dataset.py. Punto de partida del Experimento 0.
+    """
+    df = m1_fix_encoding(df, perfil='B', csv=csv)
     if csv == 'trabajo_social':
-        df = m4b_concat_nombre_ts(df)
+        df = m4_concat_nombre_ts(df)
+    return df
+
+
+def run_profile_b2(df: pd.DataFrame, csv: str) -> pd.DataFrame:
+    """
+    Perfil B2 — Limpieza de caracteres + concat + renombrado semántico.
+    Ejecución: M1 → M2 → M4(si TS) → M7
+
+    M7 corre al final: no hay dependencias de orden entre módulos.
+    SEMANTIC_BLOCKS para B2 (post-M7) pendiente de definición en dataset.py.
+    """
+    df = m1_fix_encoding(df, perfil='B', csv=csv)
+    df = m2_clean_nombres(df, csv)
+    if csv == 'trabajo_social':
+        df = m4_concat_nombre_ts(df)
+    df = m7_rename_columns(df, csv)
     return df
