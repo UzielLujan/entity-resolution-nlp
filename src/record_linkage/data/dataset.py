@@ -1,7 +1,10 @@
 """Dataset construction: serialization, entity labeling, and parquet generation."""
 
+import numpy as np
 import pandas as pd
 from typing import List, Optional
+import unicodedata
+import re
 
 
 # Mapeo de columnas a bloques semánticos por CSV
@@ -22,12 +25,12 @@ SEMANTIC_BLOCKS = {
     "econo": {
         "[BLK_ID]": ["nombre_del_paciente", "sexo", "edad", "grupo_edad"],
         "[BLK_ADMIN]": [
-            "expediente", "motivo_de_egreso",
+            "exp", "dias_estancia",
             "fecha_ingreso_iner", "fecha_de_alta_mejoria",
             "total_de_ingresos", "total_de_egresos",
             "gasto_total", "gasto_diario"
         ],
-        "[BLK_CLIN]": ["resultado", "etiquetas_covid", "dias_estancia"],
+        "[BLK_CLIN]": ["resultado", "etiquetas_covid", "motivo_de_egreso"],
         "[BLK_GEO]": [
             "estado_residencia", "clave_geoestadistica_estatal",
             "municipio_residencia", "clave_geoestadistica_municipal"
@@ -53,33 +56,8 @@ SEMANTIC_BLOCKS = {
     },
 }
 
-# Orden de serialización: primero ID y ADMIN, luego CLIN, luego GEO y SOCIO
-SERIALIZATION_ORDER = ["[BLK_ID]", "[BLK_ADMIN]", "[BLK_CLIN]", "[BLK_GEO]", "[BLK_SOCIO]"]
-
-
-def _detect_csv_type(row: pd.Series) -> str:
-    """Detecta qué CSV es basado en columnas presentes.
-
-    Returns: "comorbilidad", "econo", o "trabajo_social"
-    """
-    cols_lower = {col.lower().replace(" ", "_").replace("/", "_").replace(".", "_")
-                  for col in row.index}
-
-    # Heurística: detecta por columnas únicas
-    if "comorbi" in cols_lower or "comorbicv" in cols_lower:
-        return "comorbilidad"
-    elif "gasto_total" in cols_lower or "dias_estancia" in cols_lower:
-        return "econo"
-    elif "ocupación" in cols_lower or "apellido_paterno" in cols_lower:
-        return "trabajo_social"
-    else:
-        # Default: intenta deducir por cantidad de columnas
-        if len(row) < 20:
-            return "trabajo_social"
-        elif len(row) < 30:
-            return "comorbilidad"
-        else:
-            return "econo"
+# Orden de serialización de bloques semánticos
+SERIALIZATION_ORDER = ["[BLK_ID]", "[BLK_CLIN]", "[BLK_ADMIN]", "[BLK_GEO]", "[BLK_SOCIO]"]
 
 
 def _normalize_column_name(col: str) -> str:
@@ -88,86 +66,99 @@ def _normalize_column_name(col: str) -> str:
 
 
 def _format_value(val) -> str:
-    """Formatea un valor para serialización. Maneja nulos y tipos."""
+    """Formatea un valor para serialización.
+
+    Nulos → "".
+    Numéricos con decimal cero → entero ("0.0" → "0", "1.0" → "1").
+    Floats reales → string directo ("18339.19"). Strings → strip.
+    Aplica a todos los perfiles: es normalización de presentación para el tokenizador,
+    no intervención sobre los datos — independiente del nivel de limpieza del CSV.
+    """
     if pd.isna(val):
         return ""
-    if isinstance(val, (int, float)):
-        if isinstance(val, float) and val == int(val):
-            return str(int(val))
-        return str(val)
-    return str(val).strip()
+    if isinstance(val, (int, float, np.integer, np.floating)):
+        f = float(val)
+        if f == int(f):
+            return str(int(f))
+        return str(f)
+    s = str(val).strip()
+    try:
+        f = float(s)
+        if f == int(f):
+            return str(int(f))
+        return str(f)
+    except (ValueError, TypeError):
+        return s
 
 
-def _serialize_block(row: pd.Series, block_cols: List[str], block_name: str) -> str:
+def _serialize_block(row: pd.Series, block_cols: List[str], block_name: str,
+                     use_block_tokens: bool = True) -> str:
     """Serializa un bloque semántico individual.
 
     Args:
         row: una fila de un DataFrame
         block_cols: lista de columnas del bloque
         block_name: nombre del bloque (ej: "[BLK_ID]")
+        use_block_tokens: si False, omite tokens especiales (para zero-shot)
 
     Returns:
-        string con formato "[BLK_*] col1: val1 col2: val2 ..."
-        o "[BLK_*] (no data)" si todas las columnas son nulas
+        Fine-tuning:  "[BLK_*] [COL] col1 [VAL] val1 [COL] col2 [VAL] val2 ..."
+        Zero-shot:    "col1: val1 col2: val2 ..."
+        Bloque vacío: "" en ambos casos — se omite completamente de la secuencia
     """
     block_values = []
 
     for col in block_cols:
         col_norm = _normalize_column_name(col)
+        val = None
         if col_norm in row.index:
             val = _format_value(row[col_norm])
-            if val:
-                block_values.append(f"{col_norm}: {val}")
-        # Si la columna no existe en la fila, intenta búsqueda case-insensitive
         else:
             for idx_col in row.index:
                 if _normalize_column_name(idx_col) == col_norm:
                     val = _format_value(row[idx_col])
-                    if val:
-                        block_values.append(f"{col_norm}: {val}")
                     break
 
-    if block_values:
-        return f"{block_name} {' '.join(block_values)}"
-    else:
-        return f"{block_name} (no data)"
+        if val:
+            if use_block_tokens:
+                block_values.append(f"[COL] {col_norm} [VAL] {val}")
+            else:
+                block_values.append(f"{col_norm}: {val}")
+
+    if not block_values:
+        return ""
+
+    content = " ".join(block_values)
+    return f"{block_name} {content}" if use_block_tokens else content
 
 
-def serialize_record(row: pd.Series, csv_name: Optional[str] = None) -> str:
-    """Serializa un registro tabular a secuencia de texto con tokens [BLK_*].
+def serialize_record(row: pd.Series, csv_name: str,
+                     use_block_tokens: bool = True) -> str:
+    """Serializa un registro tabular a secuencia de texto.
 
     Args:
         row: Una fila de pandas (pd.Series con nombres de columnas)
-        csv_name: Nombre del CSV (opcional; se detecta automáticamente si no se proporciona)
+        csv_name: Nombre del CSV — debe ser exactamente 'comorbilidad', 'econo' o 'trabajo_social'
+        use_block_tokens: True → incluye tokens [BLK_*] (entrenamiento fine-tuned)
+                          False → texto limpio sin tokens (zero-shot / baseline)
 
     Returns:
-        string con tokens semánticos, separados por espacios.
-        Ej: "[BLK_ID] nombre: Juan García [BLK_ADMIN] expediente: 12345 ..."
+        Fine-tuning: "[BLK_ID] [COL] nombre [VAL] Juan García [BLK_ADMIN] [COL] expediente [VAL] 12345 ..."
+        Zero-shot:   "nombre: Juan García expediente: 12345 ..."
+        Bloques sin datos se omiten completamente de la secuencia.
     """
-    if csv_name is None:
-        csv_type = _detect_csv_type(row)
-    else:
-        csv_name_norm = csv_name.lower().replace("_", "").replace("-", "").replace(".", "")
-        if "comorbi" in csv_name_norm:
-            csv_type = "comorbilidad"
-        elif "econ" in csv_name_norm or "econo" in csv_name_norm:
-            csv_type = "econo"
-        elif "trabajo" in csv_name_norm or "social" in csv_name_norm:
-            csv_type = "trabajo_social"
-        else:
-            csv_type = _detect_csv_type(row)
-
-    blocks_def = SEMANTIC_BLOCKS.get(csv_type)
+    blocks_def = SEMANTIC_BLOCKS.get(csv_name)
     if blocks_def is None:
-        raise ValueError(f"CSV type '{csv_type}' not recognized. Use 'comorbilidad', 'econo', or 'trabajo_social'.")
+        raise ValueError(f"csv_name '{csv_name}' no reconocido. Usar: 'comorbilidad', 'econo' o 'trabajo_social'.")
 
     serialized_blocks = []
 
     for block_name in SERIALIZATION_ORDER:
         if block_name in blocks_def:
             block_cols = blocks_def[block_name]
-            block_text = _serialize_block(row, block_cols, block_name)
-            serialized_blocks.append(block_text)
+            block_text = _serialize_block(row, block_cols, block_name, use_block_tokens)
+            if block_text:
+                serialized_blocks.append(block_text)
 
     return " ".join(serialized_blocks)
 
@@ -183,11 +174,12 @@ def assign_entity_ids(df: pd.DataFrame) -> pd.DataFrame:
 
     Returns:
         DataFrame original con nueva columna 'entity_id' (int64).
-        Registros con la misma tupla (source_db, expediente, nombre_norm) reciben el mismo entity_id.
+        Registros con la misma tupla (expediente, nombre_norm) reciben el mismo entity_id,
+        independientemente del source_db — esto habilita pares positivos cross-database para MNRL.
 
     **Lógica:**
     1. Normaliza nombres con normalizar_nombre_v2() (desambigua encoding, ordena tokens)
-    2. Crea tupla (source_db, expediente, nombre_norm) para cada registro
+    2. Crea tupla (expediente, nombre_norm) para cada registro — sin source_db
     3. Agrupa registros con tupla idéntica → entity_id único por grupo
     4. Conserva order original de filas (`.reindex()`)
 
@@ -197,9 +189,6 @@ def assign_entity_ids(df: pd.DataFrame) -> pd.DataFrame:
     - 4,341 entidades vinculables entre 3 CSVs
     - Estrategia en Duplicados_INER sección 4.3 (normalizar_nombre_v2)
     """
-    import unicodedata
-    import re
-
     df_result = df.copy()
 
     # Normalización robusta: ?→N, NFD desacentuación, tokens ordenados
@@ -218,9 +207,9 @@ def assign_entity_ids(df: pd.DataFrame) -> pd.DataFrame:
     # Convertir expediente a int (maneja strings y NaN)
     df_result["expediente_int"] = pd.to_numeric(df_result["expediente"], errors="coerce").astype("Int64")
 
-    # Crear tupla (source_db, expediente, nombre_norm)
+    # Crear tupla (expediente, nombre_norm) — sin source_db para vincular entre CSVs
     df_result["llave_entity"] = df_result.apply(
-        lambda row: (row["source_db"], row["expediente_int"], row["nombre_norm"]),
+        lambda row: (row["expediente_int"], row["nombre_norm"]),
         axis=1
     )
 
@@ -308,6 +297,14 @@ def build_dataset(
     # Asignar record_id global
     df_combined.insert(0, "record_id", range(len(df_combined)))
 
+    # Mapeo de columnas de expediente y nombre por source_db
+    # Necesario para assign_entity_ids — no se guardan en el parquet final
+    _COL_MAP = {
+        "comorbilidad": ("expediente", "nombre"),
+        "econo":        ("EXP",        "NOMBRE_DEL_PACIENTE"),
+        "trabajo_social": ("EXPEDIENTE", "NOMBRE_COMPLETO"),
+    }
+
     # Serializar cada registro
     def get_csv_type(row):
         source = row["source_db"]
@@ -317,20 +314,21 @@ def build_dataset(
             return "econo"
         elif "trabajo" in source.lower():
             return "trabajo_social"
-        return "comorbilidad"
+        raise ValueError(f"source_db '{source}' no reconocido.")
 
     df_combined["text"] = df_combined.apply(
         lambda row: serialize_record(row, csv_name=get_csv_type(row)),
         axis=1
     )
 
-    # Asignar entity_ids
-    # Primero, normalizar nombres de columnas para assign_entity_ids
-    df_for_entity = df_combined[["source_db", "expediente", "nombre", "record_id", "text"]].copy()
-
-    # Rename a lower_case para consistency
-    if "nombre_del_paciente" in df_combined.columns:
-        df_for_entity["nombre"] = df_combined["nombre_del_paciente"]
+    # Construir DataFrame auxiliar para assign_entity_ids con columnas normalizadas
+    df_for_entity = df_combined[["record_id", "source_db"]].copy()
+    df_for_entity["expediente"] = df_combined.apply(
+        lambda row: row.get(_COL_MAP[get_csv_type(row)][0]), axis=1
+    )
+    df_for_entity["nombre"] = df_combined.apply(
+        lambda row: row.get(_COL_MAP[get_csv_type(row)][1]), axis=1
+    )
 
     df_for_entity = assign_entity_ids(df_for_entity)
 
@@ -341,8 +339,8 @@ def build_dataset(
         how="left"
     )
 
-    # Seleccionar columnas finales
-    df_output = df_combined[["record_id", "source_db", "expediente", "nombre", "text", "entity_id"]]
+    # Columnas finales según esquema parquet de la metodología (sección 2.2)
+    df_output = df_combined[["record_id", "source_db", "text", "entity_id"]]
 
     # Guardar como parquet (con pyarrow engine para columnas comprimidas)
     output_path_obj.parent.mkdir(parents=True, exist_ok=True)

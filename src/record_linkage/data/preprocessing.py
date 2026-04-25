@@ -45,16 +45,15 @@ def m0_normalize_text(df: pd.DataFrame) -> pd.DataFrame:
 #   El carácter '?' es el más frecuente (223 registros afectados).
 # Ejemplos: 'RAMIREZ NI?O' → 'RAMIREZ NIÑO'
 #
-# Perfil A: '?' → 'Ñ' (salida legible para el INER)
-# Perfil B: '?' → 'N' (NFD posterior elimina la tilde de Ñ de todas formas;
-#           consistente con normalizar_nombre_v2 del notebook Duplicados_INER)
+# Siempre: '?' → 'Ñ' (restaura el carácter original dañado por el sistema fuente).
+# normalizar_nombre_v2 en dataset.py maneja Ñ→N para el matching de entity_ids,
+# por lo que no hay razón para degradar el carácter en el CSV de salida.
 
-def m1_fix_encoding(df: pd.DataFrame, perfil: str = 'A', csv: str = 'comorbilidad') -> pd.DataFrame:
+def m1_fix_encoding(df: pd.DataFrame, csv: str = 'comorbilidad') -> pd.DataFrame:
     if csv != 'comorbilidad':
         return df.copy()
     df = df.copy()
-    reemplazo = 'Ñ' if perfil == 'A' else 'N'
-    df['nombre'] = df['nombre'].str.replace('?', reemplazo, regex=False)
+    df['nombre'] = df['nombre'].str.replace('?', 'Ñ', regex=False)
     return df
 
 
@@ -141,8 +140,8 @@ def m2_clean_nombres(df: pd.DataFrame, csv: str) -> pd.DataFrame:
 #
 # NOTA ARQUITECTÓNICA — Columnas binarias (Perfil A vs Perfil B):
 #   Para serialización en dataset.py, las columnas binarias tienen dos opciones:
-#   - Perfil B: int64 (0/1) — más compacto, directo
-#   - Perfil A (opcional): representación semántica en español ("Verdadero"/"Falso")
+#   - int64 (0/1) — más compacto, directo
+#   - "Verdadero"/"Falso" representación semántica en español
 #     para que modelos de lenguaje capturen la semántica de presencia/ausencia.
 #     Implementar en dataset.py durante serialize_record(), no aquí.
 
@@ -330,7 +329,7 @@ def run_profile_a(df: pd.DataFrame, csv: str) -> pd.DataFrame:
     redundancias y renombrado semántico al final.
     """
     df = m0_normalize_text(df)
-    df = m1_fix_encoding(df, perfil='A', csv=csv)
+    df = m1_fix_encoding(df, csv=csv)
     df = m2_clean_nombres(df, csv)
     df = m3_fix_types(df, csv)
     if csv == 'trabajo_social':
@@ -349,7 +348,7 @@ def run_profile_b1(df: pd.DataFrame, csv: str) -> pd.DataFrame:
     Columnas conservan nombres originales del CSV crudo. Compatible con
     SEMANTIC_BLOCKS de dataset.py. Punto de partida del Experimento 0.
     """
-    df = m1_fix_encoding(df, perfil='B', csv=csv)
+    df = m1_fix_encoding(df, csv=csv)
     if csv == 'trabajo_social':
         df = m4_concat_nombre_ts(df)
     return df
@@ -363,7 +362,7 @@ def run_profile_b2(df: pd.DataFrame, csv: str) -> pd.DataFrame:
     M7 corre al final: no hay dependencias de orden entre módulos.
     SEMANTIC_BLOCKS para B2 (post-M7) pendiente de definición en dataset.py.
     """
-    df = m1_fix_encoding(df, perfil='B', csv=csv)
+    df = m1_fix_encoding(df, csv=csv)
     df = m2_clean_nombres(df, csv)
     if csv == 'trabajo_social':
         df = m4_concat_nombre_ts(df)
