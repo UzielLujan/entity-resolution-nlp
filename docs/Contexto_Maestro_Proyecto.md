@@ -5,28 +5,28 @@ Este documento contextualiza y unifica dos esfuerzos paralelos y complementarios
 
 ---
 
-## 2. Eje 1. Consultoría: Análisis e Ingeniería de Datos (La Base)
+## 2. Eje 1. Consultoría: Análisis e Ingeniería de Datos
 Esta es la **fase exploratoria y de estandarización**. Su propósito es diagnosticar la calidad de los datos crudos del INER y construir los cimientos relacionales del proyecto.
 
 Los tres objetivos y productos finales esperados son:
-1. **Diccionario de Datos:** Creación de un diccionario de los datos proporcionados identificando las columnas susceptibles a ser consideradas llaves foráneas.
+1. **Diccionario de Datos:** Creación de un diccionario de los datos proporcionados identificando las columnas susceptibles a ser consideradas llaves foráneas y que permitan la vinculación entre bases.
 2. **Base de Datos Consolidada:** Consolidar las distintas tablas dispersas en una sola base de datos relacional para que esté disponible a sistemas de procesamiento automático.
 3. **Métodos de Comparación:** Desarrollo de métodos de comparación de cadenas de texto de longitudes similares, centrados en nombres propios.
 
-*Los detalles operativos están en:* `Contexto_Consultoria_INER.md` ([[Contexto_Consultoria_INER.md]])
+> Los detalles operativos están en:* `Contexto_Consultoria_INER.md` ([[Contexto_Consultoria_INER.md]])
 
 ---
 
-## 3. Eje 2 Tesis: Sistema de Ligado de Registros (El Motor)
+## 3. Eje 2 Tesis: Sistema de Ligado de Registros
 Este es el proyecto académico insignia de mi maestría en Cómputo Estadístico. Su propósito final es diseñar y desarrollar un sistema moderno de resolución de entidades (Record Linkage) que pueda ser aplicado a las bases de datos del INER, pero lo suficientemente robusto para tratar otros conjuntos de datos con problemas similares.
 
 Los objetivos y productos que requiere el modelo de tesis son:
 
 1. **Definición de Bloques Semánticos:** Identificar y definir bloques semánticos relevantes para el proceso de ligado, basados en las columnas identificadas en la fase de consultoría.
-2. **Serialización de datos tabulares:** Mapear las columnas originales hacia los bloques semánticos y desarrollar un proceso serialización de texto que transforme los datos tabulares en secuencias de texto adecuados para modelos de lenguaje pre-entrenados.
+2. **Serialización de datos tabulares:** Mapear las columnas originales hacia los bloques semánticos y desarrollar un proceso serialización que transforme los datos tabulares en secuencias de texto adecuados para modelos de lenguaje pre-entrenados.
 3. **Consolidación del conjunto de datos:** Consolidar el conjunto de datos vectorizado en formato `.parquet` que contenga las representaciones serializadas de los datos textuales, optimizada para la ingesta del modelo.
 
-* Para el fundamento académico y el diseño inicial del proyecto: `ElProtocolodeInvestigacion.md` ([[ElProtocolodeInvestigacion.md]]). Los detalles del sistema moderno actual se encuentran en: `Metodologia_arquitectura.md` ([[Metodologia_arquitectura.md]]).
+* Para el fundamento académico y diseño inicial del proyecto: `ElProtocolodeInvestigacion.md` ([[ElProtocolodeInvestigacion.md]]). Los detalles completos del sistema moderno actual se encuentran en: `Metodologia_arquitectura.md` ([[Metodologia_arquitectura.md]]).
 
 ---
 
@@ -58,21 +58,20 @@ El ciclo de vida del dato se bifurca para satisfacer los entregables de ambos ej
     * `[x]` Destilación de requerimientos de Consultoría.
 
 * **Fase 2: Análisis Exploratorio Orientado a Objetivos de Tesis y Consultoría `[x]`**
-**Objetivos por notebook**:
-Caracterización de columnas, Calidad para Serialización y Mapeo a Bloques Semánticos
-    * `[x]` EDA Clínico / Comorbilidades (`EDA_Comorbilidad.ipynb`).
-    * `[x]` EDA Trabajo Social (`EDA_TrabajoSocial.ipynb`).
-    * `[x]` EDA Facturación / Econo (`EDA_Econo.ipynb`).
-    * `[x]` Reporte de hallazgos. Disponible en: (`Reporte_INER.pdf`)
+    * Caracterización de columnas, Calidad para Serialización y Mapeo a Bloques Semánticos, información completa contenida en:
+        * `[x]` EDA Diagnósticos y Comorbilidades: `EDA_Comorbilidad.ipynb`
+        * `[x]` EDA Trabajo Social: `EDA_TrabajoSocial.ipynb`
+        * `[x]` EDA Gastos y Económico: `EDA_Econo.ipynb`
+        * `[x]` Reporte de hallazgos extraídos a partir de dichos notebooks. Disponible en: `~/Documents/Maestria/Tesis/Reporte_Consultoría/out/Reporte_INER.pdf`
 
-* **Fase 3: Entregables de Datos (Consultoría) `[ ]`**
-    * `[ parcial ]` Construcción del **Diccionario_Datos**. Ya se tienen propuestas para este archivo, consultar `Contexto_Consultoria_INER` ([[Contexto_Consultoria_INER.md]]) para ver la estructura propuesta.
-    * `[parcial]` Script del pipeline de limpieza y consolidación de la base de datos final relacional (módulos sueltos en notebooks).
-    * `[x]` Reporte de metodología de comparación sintáctica (incluido dentro de `Reporte_INER.pdf`).
+* **Fase 3: Entregables de Datos (Consultoría) `[parcial]`**
+    * `[ parcial ]` Construcción del **Diccionario_Datos**. Ya se tiene el primer diccionario, falta definir el segundo, consultar `Contexto_Consultoria_INER` ([[Contexto_Consultoria_INER.md]]) para ver la estructura propuesta.
+    * `[x]` Script del pipeline de limpieza y consolidación de la base de datos final relacional (módulos sueltos en notebooks).
+    * `[x]` Reporte de metodología de comparación sintáctica (progreso actual reportado dentro de `Reporte_INER.pdf`).
 
 * **Fase 4: Implementación Neuronal (Tesis) `[ ]`**
-    * `[x]` Extracción de Verdad Base mediante análisis de duplicados (cubierto en `Reporte_INER.pdf``).
-    * `[ ]` Data Augmentation y Entrenamiento SBERT.
+    * `[x]` Extracción de Verdad Base mediante análisis de duplicados (cubierto en `Reporte_INER.pdf`).
+    * `[siguiente]` Data Augmentation y Entrenamiento SBERT.
 
 ## 6. Artefactos y Rutas Externas al Repo
 
@@ -83,5 +82,11 @@ Caracterización de columnas, Calidad para Serialización y Mapeo a Bloques Sem�
 
 ### Reporte de Consultoría (LaTeX)
 - **Fuente:** `~/Documents/Maestria/Tesis/Reporte_Consultoría/Reporte_INER.tex`
-- **PDF compilado:** `~/Documents/Maestria/Tesis/Reporte_Consultoría/Reporte_INER.pdf`
+- **PDF compilado:** `~/Documents/Maestria/Tesis/Reporte_Consultoría/out/Reporte_INER.pdf`
 - **Estructura:** `Capitulos/`, `Figuras/`, `Resultados/`, `Bibliografia/`, `Preambulo.tex`
+
+### Anexos de Bloques Semánticos y estimación de tokens
+- **Fuente:** `~/Documents/Maestria/Tesis/Anexo_BS_T/Reporte_BS_y_T.tex`
+- **Archivos:** `3_EDA_Comorbilidad.tex`, `3_EDA_Econo.tex`, `3_EDA_TrabajoSocial.tex`
+- **PDF compilado:** `~/Documents/Maestria/Tesis/Anexo_BS_T/Anexo_BloquesSemanticos_Tokens.pdf`
+- **Contenido:** Sección 3 de cada EDA: estructura de bloques semánticos, columnas por bloque, y especificaciones para serialización en `dataset.py`

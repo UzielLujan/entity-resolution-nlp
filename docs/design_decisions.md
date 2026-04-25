@@ -96,8 +96,9 @@ variables de entorno, con fallback automático a `~/Data/INER` si no existe `.en
 raw CSVs (~/Data/INER/raw/)
    │
    ↓  data/preprocessing.py  — una vez, offline
-   │  · Perfil A: M1→M2→M3→M4a→M4b→M4c→M5 (base analítica INER)
-   │  · Perfil B: M1→M2→M4a→M4b (mínima intervención para serialización)
+   │  · Perfil A:  M0→M1→M2→M3→M4→M5→M6→M7 (base analítica INER)
+   │  · Perfil B1: M1→M4(si TS) (mínima intervención para tesis)
+   │  · Perfil B2: M1→M2→M4(si TS)→M7 (limpieza + renombrado semántico)
    │  · salida: ~/Data/INER/processed/<csv>_clean.csv
    │
    ↓  data/dataset.py  — una vez, offline
@@ -174,6 +175,28 @@ El nombre `record_linkage` es el paquete Python; `entity-resolution-nlp`
 es el nombre del repo en GitHub. Son capas distintas — igual que `scikit-learn`
 (repo) vs `sklearn` (paquete).
 
+### `preprocessing.py` — limpieza modular con perfiles A, B1 y B2
+
+El pipeline de limpieza se implementa como un catálogo de funciones independientes
+y componibles (M0–M7), cada una respondiendo a un hallazgo concreto del EDA.
+Se exponen tres perfiles de ejecución:
+
+- **Perfil A** (`run_profile_a`): limpieza completa orientada al entregable del
+  INER (M0→M1→M2→M3→M4→M5→M6→M7).
+- **Perfil B1** (`run_profile_b1`): mínima intervención para la serialización de la
+  tesis (M1→M4 si TS). Columnas originales del CSV crudo, compatible con
+  `SEMANTIC_BLOCKS` en `dataset.py`.
+- **Perfil B2** (`run_profile_b2`): limpieza de caracteres + renombrado semántico
+  (M1→M2→M4 si TS→M7). `SEMANTIC_BLOCKS` para B2 pendiente de definición.
+
+**Decisión de nomenclatura — M7 al final:**
+El módulo de renombrado de columnas (antes M4a) fue reubicado como M7 y declarado
+siempre opcional y siempre al final. La razón: cualquier módulo que referencie
+columnas por nombre asume los nombres originales del CSV crudo. Colocar el renombrado
+en medio del pipeline creaba dependencias de orden frágiles (M4b buscaba columnas
+que M4a ya había renombrado). Con M7 al final, todos los módulos anteriores son
+agnósticos al renombrado.
+
 ### `dataset.py` — serialización y etiquetado consolidados
 
 Inicialmente se consideraron dos módulos separados (`serialization.py` y
@@ -190,6 +213,70 @@ assign_entity_ids(df, pairs_df)      # asigna entity_id desde ground truth
 build_dataset(csv_paths, ...)        # pipeline completo → .parquet
 ```
 
+### Construcción del Ground Truth y Asignación de `entity_id`
+
+**✅ IMPLEMENTADO** en `src/record_linkage/data/dataset.py` — función `assign_entity_ids()`.
+
+**Estrategia:**
+
+La construcción del ground truth se basa en un criterio determinista:
+**(expediente, nombre_v2_normalizado)** — sin `source_db`, para que el mismo paciente
+en distintas bases de datos reciba el mismo `entity_id` y genere pares positivos
+cross-database durante el entrenamiento MNRL.
+
+**Normalización robusta (`normalizar_nombre_v2()`):**
+Basada en análisis de `notebooks/Duplicados_INER.ipynb` §4.3:
+1. Reemplaza `?` → `N` (encoding roto de Ñ en Comorbilidad)
+2. Desacentúa vía NFD (quita diacríticos)
+3. Limpia caracteres no alfabéticos (`.`, `|`, `/`, NBSP)
+4. **Ordena tokens alfabéticamente** (invariante al orden AP/AM/NOMBRE entre CSVs)
+
+**Pipeline de clustering:**
+```python
+def assign_entity_ids(df):
+    # Normaliza nombres con normalizar_nombre_v2()
+    # Crea tupla (expediente_int, nombre_norm) — sin source_db
+    # Agrupa registros con tupla idéntica → mismo entity_id
+    # Retorna df con columna entity_id (int64)
+```
+
+**Resultado Ground Truth:**
+- **9,855 pares positivos confirmados** (EXP + nombre coinciden entre CSVs)
+- **4,341 entidades vinculables** (presentes en 2 o 3 CSVs)
+- **1,569 pares pendientes** (EXP igual, nombre diferente tras normalización)
+  — candidatos para revisión manual o Zero-Shot SBERT
+
+El DataFrame final (Parquet) tiene columnas `record_id`, `source_db`, `text`, `entity_id`.
+
+**Notas arquitectónicas:**
+- Evita pre-computar y almacenar pares explícitos ($O(N^2)$).
+- Durante entrenamiento MNRL: cualquier batch con registros que comparten `entity_id`
+  genera automáticamente pares positivos (in-batch negatives).
+- Registros con distinto `entity_id` son negativos implícitos.
+- Agnóstico al nivel de preprocesamiento: verificado con B0 (crudos) y B1 — ambos
+  producen exactamente los mismos 9,855 pares y 4,341 vinculables.
+- **Fuente de validación:** `notebooks/Duplicados_INER.ipynb` secciones 4.3–5.5.
+
+**Reconciliación de métricas entre notebook y pipeline (2026-04-24):**
+
+Durante la revisión se detectó una discrepancia aparente en el conteo de entidades únicas
+entre el notebook de consultoría y el pipeline de tesis. La inspección reveló que miden
+cosas distintas, ambas correctas para su propósito:
+
+| Métrica | Valor | Definición | Propósito |
+|---|---|---|---|
+| Expedientes únicos (notebook) | 15,221 | `len(exp_eco ∪ exp_comor ∪ exp_ts)` — solo EXP, sin NaN | Reporte INER |
+| Identidades únicas con EXP (notebook corregido) | 16,141 | `len(pares_eco ∪ pares_comor ∪ pares_ts)` — (EXP, nombre_norm), sin NaN | Análisis preciso |
+| Identidades únicas (pipeline) | 16,222 | Igual que anterior + 81 registros con NaN expediente en Econo | Tesis — todos los registros |
+
+El notebook original tenía un bug en la fila TOTAL de la tabla de distribución por regiones:
+copiaba `total_entidades` (expedientes únicos) en la columna "EXP + Nombre" en lugar de
+calcular la unión real de pares. Corregido en `notebooks/Duplicados_INER.ipynb` §5.3.
+
+Los 81 registros con NaN expediente en Econo se excluyen del análisis de vinculación del
+notebook (no pueden hacer match sin expediente) pero sí se incluyen en el pipeline de
+tesis — cada uno recibe su propio `entity_id` y será visible al modelo durante inferencia.
+
 ### `augmentation.py` — transformaciones on-the-fly
 
 La aumentación de datos se aplica durante el entrenamiento y no se persiste en
@@ -198,17 +285,6 @@ garantiza variabilidad estocástica en cada época. Los operadores implementados
 son: span deletion, block shuffling, typo injection, attribute masking e
 input swapping.
 
-### `preprocessing.py` — limpieza modular con perfiles A y B
-
-El pipeline de limpieza se implementa como un catálogo de funciones independientes
-y componibles (M1–M8), cada una respondiendo a un hallazgo concreto del EDA.
-Se exponen dos perfiles de ejecución:
-
-- **Perfil A** (`run_profile_a`): limpieza completa orientada al entregable del
-  INER (M1→M2→M3→M4a→M4b→M4c→M5).
-- **Perfil B** (`run_profile_b`): mínima intervención para la serialización de la
-  tesis (M1→M2→M4a→M4b). Preserva el ruido léxico deliberadamente para que el
-  modelo aprenda a superarlo sin sesgo de limpieza.
 
 ### Separación `mnrl.py` / `bce.py`
 

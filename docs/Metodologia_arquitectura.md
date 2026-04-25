@@ -74,17 +74,17 @@ Para resolver la explosión combinatoria $\mathcal{O}(N^2)$ inherente a la vincu
 
 | Columna | Tipo de Dato | Descripción Funcional |
 | :--- | :--- | :--- |
-| `record_id` | String | Identificador primario único de la observación en su base de origen (ej. `ECO_1045`). |
+| `record_id` | String | Identificador primario único de la observación en su base de origen (ej. `Econo_1045`). |
 | `source_db` | String | Base de datos de procedencia (`comorbilidades`, `economica`, `tsocial`). |
 | `text` | String | Secuencia de texto crudo serializado con tokens especiales, sin saltos de línea (ej. `[BLK_ID] Nombre...`). |
 | `entity_id` | String | **Etiqueta Maestra.** Identificador global único que agrupa a la misma entidad (paciente real) a través de las bases. |
 
 **Lógica de Agrupamiento para el Entrenamiento (MNRL):**
 
-Bajo este esquema de unificación, el archivo final consolida exactamente el total nominal de registros ($N$). Durante la construcción dinámica de los lotes (*batches*) en la fase de entrenamiento, cualquier subconjunto de filas que comparta el mismo `entity_id` se extrae automáticamente como un conjunto de **Pares Positivos**. Por corolario, cualquier cruce entre filas con distinto `entity_id` dentro del mismo lote se procesa algorítmicamente como un **Negativo Implícito** para la función de pérdida MNRL. Esta estructura elimina la necesidad de pre-computar y almacenar matrices dispersas gigantescas.
+Bajo este esquema de unificación, el archivo final consolida exactamente el total nominal de registros ($N$). Durante la construcción dinámica de los lotes (*batches*) en la fase de entrenamiento, cualquier subconjunto de filas que comparta el mismo `entity_id` se extrae automáticamente como un conjunto de **Pares Positivos**. Por consiguiente, cualquier cruce entre filas con distinto `entity_id` dentro del mismo lote se procesa algorítmicamente como un **Negativo Implícito** para la función de pérdida MNRL. Esta estructura elimina la necesidad de pre-computar y almacenar matrices dispersas gigantescas.
 
 
-### 2.2. Inyección de Conocimiento de Dominio (Domain Knowledge Injection)
+### 2.3. Inyección de Conocimiento de Dominio (Domain Knowledge Injection)
 Para mitigar la ambigüedad en campos de **alta precisión sintáctica** donde la semántica general no es un criterio discriminativo suficiente (como identificadores únicos o fechas), se implementa la estrategia de **Tipificación de Segmentos (*Span Typing*)** propuesta por Li et al. [1].
 
 Esta técnica consiste en insertar etiquetas especiales de apertura y cierre alrededor de segmentos críticos. El objetivo es forzar al mecanismo de atención a enfocarse en la **coincidencia exacta** de los caracteres delimitados, penalizando severamente las discrepancias superficiales.
@@ -103,7 +103,7 @@ Complementariamente, se aplica la estrategia de **Normalización de Segmentos (*
     Esto previene falsos negativos derivados exclusivamente de inconsistencias de formato durante la captura manual en el entorno clínico [1].
 
 
-### 2.3. Longitud de la Secuencia de Entrada: Resumen Estadístico Basado en TF-IDF
+### 2.4. Longitud de la Secuencia de Entrada: Resumen Estadístico Basado en TF-IDF
 
 Dado que los modelos basados en BERT imponen una restricción de entrada de 512 tokens (sub-words), el truncamiento ingenuo de registros clínicos extensos podría resultar en la pérdida de información crítica situada al final del texto.
 
