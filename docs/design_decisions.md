@@ -27,9 +27,12 @@ entity-resolution-nlp/
 ├── tests/                  ← unit tests
 │
 ├── scripts/                ← scripts Python invocados desde .sh o local
-│   ├── download_model.py   ← descarga modelos HuggingFace localmente antes de subir al cluster
+│   ├── download_model.py      ← descarga BETO y RoBERTa-biomedical como SentenceTransformer
+│   │                            Uso: python scripts/download_model.py --all
 │   ├── run_preprocessing.py
-│   ├── run_dataset.py
+│   ├── run_dataset.py         ← soporta --perfil B1|B2|zero_shot
+│   ├── evaluate_zeroshot.py   ← Recall@K, MRR y Δ separabilidad sobre pares cross-database
+│   │                            Uso: python scripts/evaluate_zeroshot.py --all
 │   ├── train_biencoder.py
 │   └── train_crossencoder.py
 │
@@ -75,7 +78,9 @@ tanto en local como en el cluster (con rutas distintas resueltas vía `.env`).
     ├── processed/          ← CSVs limpios y dataset.parquet
     ├── ground_truth/       ← pares candidatos sujetos a revisión manual
     ├── models/
-    │   ├── pretrained/     ← pesos descargados de HuggingFace (BETO, RoBERTa-bne)
+    │   ├── pretrained/     ← pesos descargados de HuggingFace como SentenceTransformer
+    │   │   ├── BETO/               (dccuchile/bert-base-spanish-wwm-cased)
+    │   │   └── RoBERTa-biomedical/ (PlanTL-GOB-ES/roberta-base-biomedical-clinical-es)
     │   │                     se descargan local y se transfieren al cluster
     │   └── checkpoints/    ← checkpoints entrenados por nosotros (.pt, .bin)
     ├── embeddings/         ← vectores precalculados (.faiss)
@@ -102,9 +107,17 @@ raw CSVs (~/Data/INER/raw/)
    │  · salida: ~/Data/INER/processed/<csv>_clean.csv
    │
    ↓  data/dataset.py  — una vez, offline
-   │  · serializa cada registro tabular a secuencia de texto con tokens especiales
-   │  · asigna entity_id usando los pares del ground_truth/
-   │  · guarda el resultado en ~/Data/INER/processed/dataset.parquet
+   │  · serializa cada registro tabular a secuencia de texto
+   │  · use_block_tokens=True  → tokens [BLK_*] (fine-tuning)
+   │  · use_block_tokens=False → Clave:Valor, nulos omitidos (zero-shot)
+   │  · asigna entity_id usando llave determinista (expediente, nombre_norm)
+   │  · guarda en ~/Data/INER/processed/<perfil>/dataset.parquet
+   │
+   ↓  scripts/evaluate_zeroshot.py  — una vez, antes del fine-tuning
+   │  · codifica registros vinculables con BETO y RoBERTa-biomedical (zero-shot)
+   │  · calcula Recall@K, MRR y Δ separabilidad sobre pares cross-database
+   │  · establece el baseline a superar con fine-tuning
+   │  · resultados en ~/Data/INER/outputs/evaluation/zeroshot_results.json
    │
    ↓  data/splitting.py  — una vez, offline
    │  · particiona a nivel de entidad (sin data leakage)
@@ -286,6 +299,24 @@ son: span deletion, block shuffling, typo injection, attribute masking e
 input swapping.
 
 
+### Selección de backbone para zero-shot y fine-tuning
+
+**Decisión (2026-04-28):** El segundo backbone es `PlanTL-GOB-ES/roberta-base-biomedical-clinical-es`
+en lugar de `PlanTL-GOB-ES/roberta-base-bne`.
+
+**Motivo:** `roberta-base-bne` fue removido de HuggingFace Hub — el repositorio solo contiene
+README sin pesos. El modelo biomédico-clínico es superior para este dominio:
+
+| Modelo | Corpus | Relevancia para INER |
+|---|---|---|
+| `dccuchile/bert-base-spanish-wwm-cased` (BETO) | Wikipedia + noticias ES | Baseline estándar |
+| `PlanTL-GOB-ES/roberta-base-biomedical-clinical-es` | Texto clínico-biomédico ES | Alta — mismo dominio |
+
+Ambos son RoBERTa/BERT base (12 capas, 768 dim), por lo que la comparación es justa.
+Se guarda localmente como `~/Data/INER/models/pretrained/RoBERTa-biomedical/`.
+
+---
+
 ### Separación `mnrl.py` / `bce.py`
 
 Las dos etapas del pipeline tienen objetivos de entrenamiento distintos:
@@ -307,6 +338,14 @@ como `scripts/` rompe esta resolución sin configuración adicional no probada.
 
 ## Pendientes de diseño
 
+- **Revisar en profundidad los modelos descargados (BETO y RoBERTa-biomedical).**
+  En particular RoBERTa-biomedical: su `args.json` revela que fue entrenado con
+  vocabulario BPE de 52k tokens (`bio-biomedical-clinical-vocab-52k`) construido
+  sobre un corpus clínico-biomédico en español. Pendiente confirmar:
+  - Fuentes exactas del corpus de preentrenamiento
+  - Si incluye texto mexicano o solo español peninsular
+  - Cuántas épocas / tokens procesados durante el preentrenamiento
+  - Comparativa con BETO en benchmarks de NLP clínico en español (BioASQ-es, etc.)
 - Definir si el entrenamiento en el cluster usará 1 o 2 GPUs por nodo
   (DDP con `torchrun --nproc_per_node=2` vs entrenamiento estándar).
 - Decidir la estrategia de logging y experiment tracking (MLflow, W&B, etc.)
