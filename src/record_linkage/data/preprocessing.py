@@ -19,19 +19,19 @@ import pandas as pd
 # =============================================================================
 #
 # Aplica strip + upper a todas las columnas dtype==object de cualquier CSV.
-# Colapsa variantes sintácticas espurias (espacios finales, capitalización mixta)
-# que inflan artificialmente la cardinalidad de columnas categóricas.
-# Detectado en EDA_Comorbilidad cells 34-36 (diagnósticos) y EDA_Econo cell 32
-# (ESCOLARIDAD, OCUPACION) y EDA_TS cell 35 (variables socioeconómicas).
-#
+# Colapsa variantes sintácticas que inflan artificialmente la cardinalidad de columnas categóricas.
+
 # No forma parte de Perfil A ni Perfil B por defecto — se llama explícitamente.
 # Corre antes que M1 y M2: redundante en campos de nombre pero no dañino,
 # ya que M1 (? → Ñ) y M2 (limpieza específica) operan sobre el resultado.
 
-def m0_normalize_text(df: pd.DataFrame) -> pd.DataFrame:
+def m0_normalize_text(df: pd.DataFrame, strip: bool = True, upper: bool = True) -> pd.DataFrame:
     df = df.copy()
     for col in df.select_dtypes(include='object').columns:
-        df[col] = df[col].str.strip().str.upper()
+        if strip:
+            df[col] = df[col].str.strip()
+        if upper:
+            df[col] = df[col].str.upper()
     return df
 
 
@@ -40,11 +40,6 @@ def m0_normalize_text(df: pd.DataFrame) -> pd.DataFrame:
 # =============================================================================
 #
 # Problema: el sistema fuente de Comorbilidad codificó mal la 'Ñ' como '?'.
-# Detectado en EDA_Comorbilidad cell 21 con:
-#   patron = re.compile(r'[^A-ZÁÉÍÓÚÜÑ \-]', re.IGNORECASE)
-#   El carácter '?' es el más frecuente (223 registros afectados).
-# Ejemplos: 'RAMIREZ NI?O' → 'RAMIREZ NIÑO'
-#
 # Siempre: '?' → 'Ñ' (restaura el carácter original dañado por el sistema fuente).
 # normalizar_nombre_v2 en dataset.py maneja Ñ→N para el matching de entity_ids,
 # por lo que no hay razón para degradar el carácter en el CSV de salida.
@@ -61,7 +56,7 @@ def m1_fix_encoding(df: pd.DataFrame, csv: str = 'comorbilidad') -> pd.DataFrame
 # M2 — Limpieza de caracteres en nombres  |  CSV: los 3
 # =============================================================================
 #
-# Función de detección unificada para los 3 CSV (Duplicados_INER cell 18):
+# Función de detección unificada para los 3 CSV:
 #   patron = re.compile(r'[^A-ZÁÉÍÓÚÜÑ \-]', re.IGNORECASE)
 #
 # Espacios múltiples (los 3 CSV):
@@ -186,10 +181,9 @@ def m3_fix_types(df: pd.DataFrame, csv: str) -> pd.DataFrame:
 # M4 — Concatenación de nombre completo  |  CSV: Trabajo Social
 # =============================================================================
 #
-# Trabajo Social — concatenación de los 3 campos de nombre (EDA_TS cells 11, 23
-# y Duplicados_INER cell 10). Opera sobre nombres originales (pre-M7).
+# Trabajo Social — concatenación de los 3 campos de nombre. Opera sobre nombres originales (pre-M7).
 #
-# Comorbilidad — `obesidad` vs `obesidad1` (EDA_Comorbilidad cells 39-40):
+# Comorbilidad — `obesidad` vs `obesidad1`:
 #   Difieren en ~13.7% de registros. `obesidad` aplica criterio clínico más amplio.
 #   Decisión de cuál conservar: pendiente de criterio clínico del INER.
 
@@ -207,11 +201,11 @@ def m4_concat_nombre_ts(df: pd.DataFrame) -> pd.DataFrame:
 # M5 — Eliminación de columnas redundantes  |  CSV: Comorbilidad y Trabajo Social
 # =============================================================================
 #
-# Comorbilidad (EDA_Comorbilidad cell 31):
+# Comorbilidad:
 #   - `dx2`, `dx3`, `dx4`: duplicados exactos (100% coincidencia registro a registro)
 #     de `cie102`, `cie103`, `cie104` incluyendo mismos nulos → eliminar.
 #
-# Trabajo Social (EDA_TS cells 31-33, Duplicados_INER cell 2):
+# Trabajo Social:
 #   - `Unnamed: 19`: 98.3% nulos, artefacto del sistema
 #   - `AÑO`: redundante con `FECHA DE ELABORACIÓN`, traslapes entre años consecutivos
 #   - `FILA`: índice heredado de los 4 archivos anuales originales (valores 0–6107,
@@ -351,6 +345,20 @@ def run_profile_b1(df: pd.DataFrame, csv: str) -> pd.DataFrame:
     df = m1_fix_encoding(df, csv=csv)
     if csv == 'trabajo_social':
         df = m4_concat_nombre_ts(df)
+    return df
+
+
+def run_profile_zs(df: pd.DataFrame, csv: str) -> pd.DataFrame:
+    """
+    Perfil ZS — Mínima intervención para evaluación zero-shot.
+    Ejecución: M1 únicamente.
+
+    Conserva nombres y estructura originales del CSV crudo. NO aplica M4:
+    los campos de nombre de Trabajo Social (APELLIDO PATERNO, APELLIDO MATERNO,
+    NOMBRE) permanecen separados. build_dataset los concatena on-the-fly
+    para la asignación de entity_id.
+    """
+    df = m1_fix_encoding(df, csv=csv)
     return df
 
 
