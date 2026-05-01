@@ -68,7 +68,7 @@ def _format_value(val) -> str:
 
     Nulos → "".
     Numéricos con decimal cero → entero ("0.0" → "0", "1.0" → "1").
-    Floats reales → string directo ("18339.19"). Strings → strip.
+    Floats reales → redondeados a 2 decimales ("18339.1945" → "18339.19"). Strings → strip.
     Aplica a todos los perfiles: es normalización de presentación para el tokenizador,
     no intervención sobre los datos — independiente del nivel de limpieza del CSV.
     """
@@ -76,12 +76,14 @@ def _format_value(val) -> str:
         return ""
     if isinstance(val, (int, float, np.integer, np.floating)):
         f = float(val)
+        f = round(f, 2)
         if f == int(f):
             return str(int(f))
         return str(f)
     s = str(val).strip()
     try:
         f = float(s)
+        f = round(f, 2)
         if f == int(f):
             return str(int(f))
         return str(f)
@@ -153,6 +155,11 @@ def serialize_record(row: pd.Series, csv_name: str,
     for block_name in SERIALIZATION_ORDER:
         if block_name in blocks_def:
             block_cols = blocks_def[block_name]
+            
+            # Priorizar NOMBRE_COMPLETO en Trabajo Social si está disponible (Perfiles Tesis1, Tesis2, Iner)
+            if csv_name == 'trabajo_social' and block_name == '[BLK_ID]' and 'NOMBRE_COMPLETO' in row.index:
+                block_cols = ["NOMBRE_COMPLETO"] + [c for c in block_cols if c not in ["APELLIDO PATERNO", "APELLIDO MATERNO", "NOMBRE"]]
+            
             block_text = _serialize_block(row, block_cols, block_name, use_block_tokens)
             if block_text:
                 serialized_blocks.append(block_text)
