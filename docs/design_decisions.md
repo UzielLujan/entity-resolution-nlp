@@ -1,9 +1,8 @@
 # Decisiones de diseño — `entity-resolution-nlp`
 
-Este documento registra las decisiones arquitectónicas del proyecto de tesis
-y el razonamiento detrás de cada una.
+Este documento registra las decisiones arquitectónicas del proyecto de tesisy el razonamiento detrás de cada una.
 
-La nota personal sobre entorno y dependencias modernas se encuentra en [[entorno_y_dependencias.md]] y complementa la justificación de `pyproject.toml`, `micromamba` y `uv`.
+Las notas personales sobre aspectos técnicos y metodológicos sobre este proyecto se encuentran en `docs/Anexos/*.md`, por ejemplo, en [[entorno_y_dependencias.md]] complementa la justificación de `pyproject.toml`, `micromamba` y `uv`.
 
 ---
 
@@ -16,8 +15,8 @@ entity-resolution-nlp/
 ├── .gitignore
 ├── pyproject.toml          ← definición del paquete y dependencias (uv)
 │
-├── train_biencoder.sh      ← script de lanzamiento SLURM — Etapa 1
-├── train_crossencoder.sh   ← script de lanzamiento SLURM — Etapa 2
+├── run_beto_baseline.sh    ← script de lanzamiento SLURM — Bi-Encoder BETO
+├── run_roberta_bio.sh      ← script de lanzamiento SLURM — Bi-Encoder RoBERTa-biomedical
 │   (los .sh DEBEN vivir en la raíz del repo; requerimiento del Lab-SB
 │    para que --chdir funcione correctamente y las rutas no se rompan)
 │
@@ -30,10 +29,11 @@ entity-resolution-nlp/
 │   ├── download_model.py      ← descarga BETO y RoBERTa-biomedical como SentenceTransformer
 │   │                            Uso: python scripts/download_model.py --all
 │   ├── run_preprocessing.py
-│   ├── run_dataset.py         ← soporta --perfil B1|B2|zero_shot
-│   ├── evaluate_zeroshot.py   ← Recall@K, MRR y Δ separabilidad sobre pares cross-database
+│   ├── run_dataset.py         ← soporta --perfil tesis0|tesis1|tesis2|iner; modo zero-shot con --no-special-tokens
+│   ├── run_splitting.py       ← partición train/val/test por entidad
+│   ├── evaluate_zeroshot.py   ← Hit@K, MRR y Δ separabilidad sobre pares cross-database
 │   │                            Uso: python scripts/evaluate_zeroshot.py --all
-│   ├── train_biencoder.py
+│   ├── run_train_biencoder.py ← CLI delgado para Etapa 1 (importa training/train_biencoder.py)
 │   └── train_crossencoder.py
 │
 └── src/
@@ -55,8 +55,12 @@ entity-resolution-nlp/
         │
         ├── training/
         │   ├── __init__.py
-        │   ├── mnrl.py         ← Multiple Negatives Ranking Loss (Etapa 1)
-        │   └── bce.py          ← Binary Cross-Entropy Loss (Etapa 2)
+        │   ├── train_biencoder.py ← Entrenamiento MNRL completo: warm init, LR diferencial, fp16
+        │   └── bce.py             ← Binary Cross-Entropy Loss (Etapa 2)
+        │
+        ├── utils/
+        │   ├── __init__.py
+        │   └── mnrl.py    ← dump_mnrl_batch() + render_sim_matrix() — diagnóstico visual MNRL
         │
         └── inference/
             ├── __init__.py
@@ -99,37 +103,19 @@ variables de entorno, con fallback automático a `~/Data/INER` si no existe `.en
 
 ```text
 raw CSVs (~/Data/INER/raw/)
-   │
-   ↓  data/preprocessing.py  — una vez, offline
-   │  · Perfil A:  M0→M1→M2→M3→M4→M5→M6→M7 (base analítica INER)
-   │  · Perfil B1: M1→M4(si TS) (mínima intervención para tesis)
-   │  · Perfil B2: M1→M2→M4(si TS)→M7 (limpieza + renombrado semántico)
-   │  · salida: ~/Data/INER/processed/<csv>_clean.csv
-   │
-   ↓  data/dataset.py  — una vez, offline
-   │  · serializa cada registro tabular a secuencia de texto
-   │  · use_block_tokens=True  → tokens [BLK_*] (fine-tuning)
-   │  · use_block_tokens=False → Clave:Valor, nulos omitidos (zero-shot)
-   │  · asigna entity_id usando llave determinista (expediente, nombre_norm)
-   │  · guarda en ~/Data/INER/processed/<perfil>/dataset.parquet
-   │
-   ↓  scripts/evaluate_zeroshot.py  — una vez, antes del fine-tuning
-   │  · codifica registros vinculables con BETO y RoBERTa-biomedical (zero-shot)
-   │  · calcula Recall@K, MRR y Δ separabilidad sobre pares cross-database
-   │  · establece el baseline a superar con fine-tuning
-   │  · resultados en ~/Data/INER/outputs/evaluation/zeroshot_results.json
-   │
-   ↓  data/splitting.py  — una vez, offline
-   │  · particiona a nivel de entidad (sin data leakage)
-   │  · produce splits train / val / test
-   │
-   ↓  data/augmentation.py  — on-the-fly durante entrenamiento
-   │  · span deletion, block shuffling, typo injection,
-   │    attribute masking, input swapping
-   │
-   ↓  models/ + training/
-      · Etapa 1: biencoder.py entrenado con mnrl.py
-      · Etapa 2: crossencoder.py entrenado con bce.py
+   ↓ preprocessing.py — aplica perfil (iner/tesis0/tesis1/tesis2)
+   │  salida: processed/<perfil>/<csv>_clean.csv
+   ↓ dataset.py — serializa registros y asigna entity_ids
+   │  use_block_tokens=True  → tokens [BLK_*]   (fine-tuning)
+   │  use_block_tokens=False → col:val sin tokens (zero-shot)
+   │  salida: processed/<perfil>/dataset.parquet
+   ↓ evaluate_zeroshot.py — baseline pre-MNRL
+   │  Recall@K, MRR, Δseparabilidad sobre pares cross-database
+   ↓ splitting.py — partición train/val/test a nivel de entidad
+   ↓ augmentation.py — on-the-fly durante entrenamiento
+   ↓ models/ + training/
+      Etapa 1: biencoder.py + mnrl.py
+      Etapa 2: crossencoder.py + bce.py
 ```
 
 ---
@@ -142,9 +128,8 @@ antes de lanzar cualquier job.
 
 ```text
 1. DESCARGAR MODELO (local, con internet)
-   python scripts/download_model.py \
-       --model_name "dccuchile/bert-base-spanish-wwm-cased" \
-       --output_dir "~/Data/INER/models/pretrained/BETO"
+   python scripts/download_model.py --model dccuchile/bert-base-spanish-wwm-cased --name BETO
+   python scripts/download_model.py --all   # descarga todos los modelos conocidos
 
 2. TRANSFERIR DATOS Y MODELO AL CLUSTER (local → cluster)
    rsync -avz ~/Data/INER/processed/   labcimatexterno:~/Data/INER/processed/
@@ -153,7 +138,8 @@ antes de lanzar cualquier job.
 
 3. LANZAR JOB EN EL CLUSTER
    cd ~/entity-resolution-nlp
-   sbatch train_biencoder.sh "~/Data/INER/models/pretrained/BETO" "run_01" 5
+   sbatch run_beto_baseline.sh                          # BETO con defaults
+   sbatch run_roberta_bio.sh 0.07 roberta_bio_run_b     # RoBERTa con temp y nombre custom
 
 4. MONITOREAR
    squeue -u est_posgrado_uziel.lujan    # ver cola (R=Running, PD=Pending)
@@ -167,7 +153,7 @@ antes de lanzar cualquier job.
 **Notas críticas del Lab-SB:**
 - Los `.sh` deben vivir en la raíz del repo — `--chdir` en SLURM los requiere ahí.
 - Usar `torchrun --nproc_per_node=2` para aprovechar las 2 GPUs Titan RTX por nodo.
-- El entorno en el cluster usa Anaconda: `conda run -n env python script.py`.
+- El entorno en el cluster usa Anaconda. Invocar Python directamente: `~/.conda/envs/tesis/bin/python -u script.py` — `conda run` bufferiza stdout y no muestra logs en tiempo real.
 - Nunca imprimir a pantalla en ejecuciones — todo debe ir a archivos de log.
 - No existen respaldos externos — la integridad de pesos y datasets es responsabilidad del usuario.
 - Cuota de maestría: máximo 4 nodos GPU simultáneos (`est_posgrado_uziel.lujan`).
@@ -188,19 +174,24 @@ El nombre `record_linkage` es el paquete Python; `entity-resolution-nlp`
 es el nombre del repo en GitHub. Son capas distintas — igual que `scikit-learn`
 (repo) vs `sklearn` (paquete).
 
-### `preprocessing.py` — limpieza modular con perfiles A, B1 y B2
+### `preprocessing.py` — limpieza modular con perfiles iner, tesis0, tesis1 y tesis2
 
 El pipeline de limpieza se implementa como un catálogo de funciones independientes
 y componibles (M0–M7), cada una respondiendo a un hallazgo concreto del EDA.
 Se exponen tres perfiles de ejecución:
 
-- **Perfil A** (`run_profile_a`): limpieza completa orientada al entregable del
+- **Perfil iner** (`profile_iner`): limpieza completa orientada al entregable del
   INER (M0→M1→M2→M3→M4→M5→M6→M7).
-- **Perfil B1** (`run_profile_b1`): mínima intervención para la serialización de la
-  tesis (M1→M4 si TS). Columnas originales del CSV crudo, compatible con
+- **Perfil tesis1** (`profile_tesis1`): mínima intervención para la serialización de la
+  tesis (M0(strip)→M1→M4 si TS→M5). Columnas originales del CSV crudo, compatible con
   `SEMANTIC_BLOCKS` en `dataset.py`.
-- **Perfil B2** (`run_profile_b2`): limpieza de caracteres + renombrado semántico
-  (M1→M2→M4 si TS→M7). `SEMANTIC_BLOCKS` para B2 pendiente de definición.
+- **Perfil tesis2** (`profile_tesis2`): limpieza de caracteres + renombrado semántico
+  (M1→M2→M4 si TS→M7). `SEMANTIC_BLOCKS` para tesis2 pendiente de definición.
+- **Modo Zero-Shot** (usa `profile_tesis0`): M0(strip)→M1. Sin M4 —
+  los campos de nombre de Trabajo Social (`APELLIDO PATERNO`, `APELLIDO MATERNO`,
+  `NOMBRE`) permanecen separados con sus nombres originales. `build_dataset` los
+  concatena on-the-fly para la asignación de `entity_id`. Produce CSVs en
+  `processed/tesis0/`, desacoplados de tesis1.
 
 **Decisión de nomenclatura — M7 al final:**
 El módulo de renombrado de columnas (antes M4a) fue reubicado como M7 y declarado
@@ -221,82 +212,108 @@ consumen en el mismo contexto, eliminando el riesgo de desincronización silenci
 Internamente `dataset.py` mantiene funciones separadas con responsabilidades claras:
 
 ```python
-serialize_record(row) -> str         # tabular → secuencia con tokens
-assign_entity_ids(df, pairs_df)      # asigna entity_id desde ground truth
+serialize_record(row, csv_name)      # tabular → secuencia con tokens [BLK_*]/[COL]/[VAL] (B1/B2)
+serialize_record_zeroshot(row)       # tabular → "col: val" sin tokens (ZS)
+assign_entity_ids(df)                # asigna entity_id por llave (expediente, nombre_norm)
 build_dataset(csv_paths, ...)        # pipeline completo → .parquet
+```
+
+**Serialización zero-shot separada (2026-04-29):**
+
+`serialize_record_zeroshot` itera `row.index` directamente (sin `SEMANTIC_BLOCKS` ni
+`SERIALIZATION_ORDER`) para preservar el orden natural de columnas del CSV. Campos
+nulos se omiten. Se llama **antes del `pd.concat`** en `build_dataset`, mientras cada
+DataFrame individual tiene su orden de columnas original — después del concat pandas
+produce un orden mezclado de la unión de columnas de los 3 CSVs.
+
+```python
+# En build_dataset — ZS serializa por CSV antes de concatenar
+for csv_path in csv_paths:
+    df = pd.read_csv(csv_path)
+    if not use_block_tokens:
+        df["text"] = df.apply(serialize_record_zeroshot, axis=1)
+    dfs.append(df)
 ```
 
 ### Construcción del Ground Truth y Asignación de `entity_id`
 
-**✅ IMPLEMENTADO** en `src/record_linkage/data/dataset.py` — función `assign_entity_ids()`.
+Implementado en `assign_entity_ids()` — `src/record_linkage/data/dataset.py`.
 
-**Estrategia:**
+**Estrategia:** llave determinista `(expediente_int, nombre_v2_normalizado)` sin `source_db`,
+para que el mismo paciente en distintas bases reciba el mismo `entity_id`.
 
-La construcción del ground truth se basa en un criterio determinista:
-**(expediente, nombre_v2_normalizado)** — sin `source_db`, para que el mismo paciente
-en distintas bases de datos reciba el mismo `entity_id` y genere pares positivos
-cross-database durante el entrenamiento MNRL.
+**`normalizar_nombre_v2()`:** `?`→`N`, desacentuación NFD, limpia no-alfa, ordena tokens
+alfabéticamente (invariante al orden AP/AM/NOMBRE entre CSVs). Ver `notebooks/Duplicados_INER.ipynb` §4.3.
 
-**Normalización robusta (`normalizar_nombre_v2()`):**
-Basada en análisis de `notebooks/Duplicados_INER.ipynb` §4.3:
-1. Reemplaza `?` → `N` (encoding roto de Ñ en Comorbilidad)
-2. Desacentúa vía NFD (quita diacríticos)
-3. Limpia caracteres no alfabéticos (`.`, `|`, `/`, NBSP)
-4. **Ordena tokens alfabéticamente** (invariante al orden AP/AM/NOMBRE entre CSVs)
+**Ground Truth:**
+- 9,855 pares positivos confirmados (EXP + nombre coinciden entre CSVs)
+- 4,341 entidades vinculables (presentes en 2+ CSVs)
+- 1,569 pares residuales (EXP igual, nombre distinto tras normalización)
+- Diferencia de +31 pares vs notebook — notebook excluye expedientes NaN, pipeline los incluye
 
-**Pipeline de clustering:**
-```python
-def assign_entity_ids(df):
-    # Normaliza nombres con normalizar_nombre_v2()
-    # Crea tupla (expediente_int, nombre_norm) — sin source_db
-    # Agrupa registros con tupla idéntica → mismo entity_id
-    # Retorna df con columna entity_id (int64)
+Parquet final: `record_id`, `source_db`, `text`, `entity_id`.
+
+**tesis2:** requiere actualizar `_COL_MAP` en `build_dataset` para los nombres post-M7
+(ej. `EXP` → `EXPEDIENTE` en Económico). Pendiente hasta confirmar si tesis2 se usará.
+
+### Tokens especiales y serialización B1/B2 — estrategia DITTO (2026-04-29)
+
+**Lista definitiva de tokens especiales:**
+```
+[BLK_ID]  [BLK_ADMIN]  [BLK_CLIN]  [BLK_GEO]  [BLK_SOCIO]
+[COL]  [VAL]
 ```
 
-**Resultado Ground Truth:**
-- **9,855 pares positivos confirmados** (EXP + nombre coinciden entre CSVs)
-- **4,341 entidades vinculables** (presentes en 2 o 3 CSVs)
-- **1,569 pares pendientes** (EXP igual, nombre diferente tras normalización)
-  — candidatos para revisión manual o Zero-Shot SBERT
+**Nulos — estrategia DITTO:** los campos nulos se serializan como `[COL] columna [VAL] NULL`,
+donde "NULL" es texto plano (no token especial). Esto sigue la implementación de DITTO
+(Mudgal et al., 2022) y aprovecha el conocimiento previo de los modelos sobre el término
+"NULL" adquirido durante preentrenamiento. Se descartó `[VAL_NULL]` como token especial
+separado y variantes en español ("Vacío", "ND", "AUSENTE") tras verificar que los
+modelos en español tienen representación adecuada de "NULL" como término técnico.
 
-El DataFrame final (Parquet) tiene columnas `record_id`, `source_db`, `text`, `entity_id`.
+**Registro de tokens en `download_model.py`:**
+Los tokens especiales se registran al guardar los modelos localmente mediante
+`tokenizer.add_special_tokens()` + `model.resize_token_embeddings()`. Sin este paso,
+el tokenizador fragmenta cada token especial en subwords:
+```
+[BLK_ID]   → '[', 'BLK', '_', 'ID', ']'     (5 tokens → 1)
+[COL]      → '[', 'COL', ']'                 (3 tokens → 1)
+[VAL]      → '[', 'VAL', ']'                 (3 tokens → 1)
+```
+**Estado:** implementado en `scripts/download_model.py` (`add_special_tokens` + `resize_token_embeddings`).
 
-**Notas arquitectónicas:**
-- Evita pre-computar y almacenar pares explícitos ($O(N^2)$).
-- Durante entrenamiento MNRL: cualquier batch con registros que comparten `entity_id`
-  genera automáticamente pares positivos (in-batch negatives).
-- Registros con distinto `entity_id` son negativos implícitos.
-- Agnóstico al nivel de preprocesamiento: verificado con B0 (crudos) y B1 — ambos
-  producen exactamente los mismos 9,855 pares y 4,341 vinculables.
-- **Fuente de validación:** `notebooks/Duplicados_INER.ipynb` secciones 4.3–5.5.
+### Distribución de tokens y decisión de `max_seq_length`
 
-**Reconciliación de métricas entre notebook y pipeline (2026-04-24):**
-
-Durante la revisión se detectó una discrepancia aparente en el conteo de entidades únicas
-entre el notebook de consultoría y el pipeline de tesis. La inspección reveló que miden
-cosas distintas, ambas correctas para su propósito:
-
-| Métrica | Valor | Definición | Propósito |
-|---|---|---|---|
-| Expedientes únicos (notebook) | 15,221 | `len(exp_eco ∪ exp_comor ∪ exp_ts)` — solo EXP, sin NaN | Reporte INER |
-| Identidades únicas con EXP (notebook corregido) | 16,141 | `len(pares_eco ∪ pares_comor ∪ pares_ts)` — (EXP, nombre_norm), sin NaN | Análisis preciso |
-| Identidades únicas (pipeline) | 16,222 | Igual que anterior + 81 registros con NaN expediente en Econo | Tesis — todos los registros |
-
-El notebook original tenía un bug en la fila TOTAL de la tabla de distribución por regiones:
-copiaba `total_entidades` (expedientes únicos) en la columna "EXP + Nombre" en lugar de
-calcular la unión real de pares. Corregido en `notebooks/Duplicados_INER.ipynb` §5.3.
-
-Los 81 registros con NaN expediente en Econo se excluyen del análisis de vinculación del
-notebook (no pueden hacer match sin expediente) pero sí se incluyen en el pipeline de
-tesis — cada uno recibe su propio `entity_id` y será visible al modelo durante inferencia.
+`max_seq_length=512` para todos los modelos. Análisis sobre dataset zero-shot (tesis0):
+ningún CSV supera 512 tokens con serialización col:val. Con tokens especiales sin registrar,
+Económico rozaba 532 tokens con BETO — con tokens registrados la cifra baja (pendiente remedir).
+El default de 128 de `paraphrase-multilingual` truncaba el 98–100% de registros de Económico y TS.
 
 ### `augmentation.py` — transformaciones on-the-fly
 
 La aumentación de datos se aplica durante el entrenamiento y no se persiste en
 disco. Esto evita almacenar múltiples versiones alteradas de cada registro y
-garantiza variabilidad estocástica en cada época. Los operadores implementados
-son: span deletion, block shuffling, typo injection, attribute masking e
-input swapping.
+garantiza variabilidad estocástica en cada época.
+
+**Operadores implementados:**
+- `shuffle_blocks` — permuta bloques `[BLK_*]` como unidades atómicas
+- `shuffle_columns` — permuta pares `[COL]/[VAL]` dentro de cada bloque
+- `mask_attributes` — reemplaza valores de campo con NULL (simula datos faltantes)
+- `inject_typos` — introduce errores tipográficos en valores de texto
+- `delete_span` — elimina una secuencia contigua de tokens no-especiales (**desactivado**, `prob=0.0`)
+
+**Decisión (2026-05-01) — campos protegidos:**
+Experimentos de ablación revelaron que `mask_attributes` puede enmascarar NOMBRE_DEL_PACIENTE
+y NO_EXPEDIENTE — los campos que sirvieron como llave para etiquetar el ground truth.
+Enmascarar estos campos en el positive crea pares sintéticos contradictorios: el modelo
+no puede aprender que anchor y positive son el mismo paciente si el campo más discriminativo
+desaparece. **Implementado:** `AugmentationConfig` tiene `protected_fields` con los 6 campos
+llave de los 3 CSVs (`nombre`, `NOMBRE_DEL_PACIENTE`, `NOMBRE_COMPLETO`, `expediente`, `EXP`, `EXPEDIENTE`).
+
+**Decisión (2026-05-01) — delete_span desactivado:**
+Borrar tokens contiguos sin discriminar tipo de campo puede eliminar dígitos de expediente
+o letras de nombre — información de identidad crítica. El operador requiere rediseño
+(ej. restringirlo a campos no protegidos) antes de activarlo.
 
 
 ### Selección de backbone para zero-shot y fine-tuning
@@ -317,14 +334,15 @@ Se guarda localmente como `~/Data/INER/models/pretrained/RoBERTa-biomedical/`.
 
 ---
 
-### Separación `mnrl.py` / `bce.py`
+### Separación `train_biencoder.py` / `bce.py`
 
 Las dos etapas del pipeline tienen objetivos de entrenamiento distintos:
 
 - **Etapa 1 (Bi-Encoder):** optimizada con MNRL para construir un espacio métrico
-  adecuado para búsqueda vectorial eficiente (alto recall).
+  adecuado para búsqueda vectorial eficiente (alto recall). Implementada en
+  `src/record_linkage/training/train_biencoder.py`; CLI en `scripts/run_train_biencoder.py`.
 - **Etapa 2 (Cross-Encoder):** optimizada con BCE como clasificador binario de alta
-  precisión sobre los candidatos recuperados.
+  precisión sobre los candidatos recuperados. Pendiente de implementar en `bce.py`.
 
 ### `.sh` en la raíz del repo
 
@@ -338,16 +356,8 @@ como `scripts/` rompe esta resolución sin configuración adicional no probada.
 
 ## Pendientes de diseño
 
-- **Revisar en profundidad los modelos descargados (BETO y RoBERTa-biomedical).**
-  En particular RoBERTa-biomedical: su `args.json` revela que fue entrenado con
-  vocabulario BPE de 52k tokens (`bio-biomedical-clinical-vocab-52k`) construido
-  sobre un corpus clínico-biomédico en español. Pendiente confirmar:
-  - Fuentes exactas del corpus de preentrenamiento
-  - Si incluye texto mexicano o solo español peninsular
-  - Cuántas épocas / tokens procesados durante el preentrenamiento
-  - Comparativa con BETO en benchmarks de NLP clínico en español (BioASQ-es, etc.)
-- Definir si el entrenamiento en el cluster usará 1 o 2 GPUs por nodo
-  (DDP con `torchrun --nproc_per_node=2` vs entrenamiento estándar).
+- **Rediseñar augmentación** — simular diferencias reales entre CSVs del INER (orden invertido de nombre Com→Eco, campos ausentes por diseño, codificaciones distintas). Rehacer `delete_span` field-aware.
+- **Pipeline de evaluación** — diseño completo pendiente de discutir con asesor (ver Pregunta 6 en `MEMORY.md`). Incluye: qué métricas reportar, direccionalidad, separación de responsabilidades entre scripts.
+- **DDP multi-GPU** — implementar `train_biencoder_ddp.py` + script SLURM con `torchrun --nproc_per_node=2` para aprovechar las 2 GPUs Titan RTX por nodo.
+- **Resolver falsos negativos** — revisar los ~11,500 pares con expediente compartido con similitud difusa; ver §Deuda técnica en `MEMORY.md`.
 - Decidir la estrategia de logging y experiment tracking (MLflow, W&B, etc.)
-- Crear el entorno de Conda en el cluster y verificar compatibilidad con
-  las versiones de CUDA disponibles en los nodos g-0-X.
