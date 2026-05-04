@@ -1,10 +1,11 @@
 """
 Pipeline de limpieza y preprocesamiento de los CSVs crudos del INER.
 
-Módulos M0–M7, organizados en tres perfiles de ejecución:
-  Perfil A  — base analítica completa para el INER (M0→M1→M2→M3→M4→M5→M6→M7)
-  Perfil B1 — mínima intervención para tesis (M1→M4 si TS)
-  Perfil B2 — limpieza de chars + concat + renombrado (M1→M2→M4 si TS→M7)
+Módulos M0–M7, organizados en cuatro perfiles de ejecución:
+  Perfil iner    — base analítica completa para el INER (M0(upper)→M1→M2→M3→M4→M5→M6→M7)
+  Perfil tesis0  — intervención mínima, base para zero-shot (M0(strip)→M1)
+  Perfil tesis1  — mínima intervención para tesis (M0(strip)→M1→M4→M5)
+  Perfil tesis2  — limpieza + renombrado semántico (M0(strip)→M1→M2→M4→M5→M7)
 
 M7 es siempre opcional y corre al final para no romper referencias de columnas previas.
 """
@@ -29,7 +30,8 @@ def m0_normalize_text(df: pd.DataFrame, strip: bool = True, upper: bool = True) 
     df = df.copy()
     for col in df.select_dtypes(include='object').columns:
         if strip:
-            df[col] = df[col].str.strip()
+            # Elimina espacios extremos y colapsa espacios internos múltiples en uno solo
+            df[col] = df[col].str.strip().str.replace(r'\s+', ' ', regex=True)
         if upper:
             df[col] = df[col].str.upper()
     return df
@@ -314,15 +316,12 @@ def m7_rename_columns(df: pd.DataFrame, csv: str) -> pd.DataFrame:
 # Perfiles de ejecución — Orquestación de módulos M0–M7
 # =============================================================================
 
-def run_profile_a(df: pd.DataFrame, csv: str) -> pd.DataFrame:
+def profile_iner(df: pd.DataFrame, csv: str) -> pd.DataFrame:
     """
-    Perfil A — Base analítica completa para el INER.
-    Ejecución: M0 → M1 → M2 → M3 → M4(si TS) → M5 → M6 → M7
-
-    Limpieza exhaustiva: tipos, normalización de nombres, eliminación de
-    redundancias y renombrado semántico al final.
+    Perfil iner — Base analítica completa para el INER.
+    Ejecución: M0(upper) → M1 → M2 → M3 → M4(si TS) → M5 → M6 → M7
     """
-    df = m0_normalize_text(df)
+    df = m0_normalize_text(df, upper=True)
     df = m1_fix_encoding(df, csv=csv)
     df = m2_clean_nombres(df, csv)
     df = m3_fix_types(df, csv)
@@ -334,45 +333,45 @@ def run_profile_a(df: pd.DataFrame, csv: str) -> pd.DataFrame:
     return df
 
 
-def run_profile_b1(df: pd.DataFrame, csv: str) -> pd.DataFrame:
+def profile_tesis0(df: pd.DataFrame, csv: str) -> pd.DataFrame:
     """
-    Perfil B1 — Mínima intervención.
-    Ejecución: M1 → M4(si TS)
+    Perfil tesis0 — Intervención mínima.
+    Ejecución: M0(strip) → M1
+    """
+    df = m0_normalize_text(df, upper=False)
+    df = m1_fix_encoding(df, csv=csv)
+    return df
 
-    Columnas conservan nombres originales del CSV crudo. Compatible con
-    SEMANTIC_BLOCKS de dataset.py. Punto de partida del Experimento 0.
+
+def profile_tesis1(df: pd.DataFrame, csv: str) -> pd.DataFrame:
     """
+    Perfil tesis1 — Mínima intervención para tesis.
+    Ejecución: M0(strip) → M1 → M4(si TS) → M5
+    """
+    df = m0_normalize_text(df, upper=False)
     df = m1_fix_encoding(df, csv=csv)
     if csv == 'trabajo_social':
         df = m4_concat_nombre_ts(df)
+    df = m5_drop_columns(df, csv)
     return df
 
 
-def run_profile_zs(df: pd.DataFrame, csv: str) -> pd.DataFrame:
+def profile_tesis2(df: pd.DataFrame, csv: str) -> pd.DataFrame:
     """
-    Perfil ZS — Mínima intervención para evaluación zero-shot.
-    Ejecución: M1 únicamente.
-
-    Conserva nombres y estructura originales del CSV crudo. NO aplica M4:
-    los campos de nombre de Trabajo Social (APELLIDO PATERNO, APELLIDO MATERNO,
-    NOMBRE) permanecen separados. build_dataset los concatena on-the-fly
-    para la asignación de entity_id.
+    Perfil tesis2 — Limpieza de caracteres + concat + renombrado semántico.
+    Ejecución: M0(strip) → M1 → M2 → M4(si TS) → M5 → M7
     """
-    df = m1_fix_encoding(df, csv=csv)
-    return df
-
-
-def run_profile_b2(df: pd.DataFrame, csv: str) -> pd.DataFrame:
-    """
-    Perfil B2 — Limpieza de caracteres + concat + renombrado semántico.
-    Ejecución: M1 → M2 → M4(si TS) → M7
-
-    M7 corre al final: no hay dependencias de orden entre módulos.
-    SEMANTIC_BLOCKS para B2 (post-M7) pendiente de definición en dataset.py.
-    """
+    df = m0_normalize_text(df, upper=False)
     df = m1_fix_encoding(df, csv=csv)
     df = m2_clean_nombres(df, csv)
     if csv == 'trabajo_social':
         df = m4_concat_nombre_ts(df)
+    df = m5_drop_columns(df, csv)
     df = m7_rename_columns(df, csv)
     return df
+
+# Perfil Zero-Shot: no es un perfil de preprocesamiento.
+# Zero-Shot se activa desde dataset.py con use_block_tokens=False.
+# Usar profile_tesis0 como base — es el nivel de intervención mínima
+# compatible con ambos modos de serialización (fine-tuning y zero-shot).
+
