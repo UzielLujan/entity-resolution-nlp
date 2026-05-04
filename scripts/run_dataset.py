@@ -1,8 +1,10 @@
-"""CLI para construir dataset serializado (Perfil B — tesis).
+"""CLI para construir dataset serializado (Perfiles Tesis).
 
-Invocación:
-    python scripts/run_dataset.py --perfil B1
-    python scripts/run_dataset.py --perfil B2 --check-paths
+Invocaciones comunes:
+    python scripts/run_dataset.py --perfil tesis0 --no-special-tokens            # Dataset para Zero-Shot
+    python scripts/run_dataset.py --perfil tesis0 --no-special-tokens --solo-nombres # Solo nombres (Sin Tokens)
+    python scripts/run_dataset.py --perfil tesis1                                # Dataset estándar para fine-tuning
+    python scripts/run_dataset.py --perfil tesis2 --check-paths                  # Validar rutas
 
 Lee CSVs preprocesados desde PROCESSED_DIR/<perfil>/, serializa registros con bloques
 semánticos, asigna entity_ids y guarda dataset.parquet en la misma subcarpeta.
@@ -21,7 +23,7 @@ from record_linkage.data.dataset import assign_entity_ids, build_dataset
 def _build_nombres_dataset(csv_paths, source_db_names, output_path):
     """Genera parquet con text = solo el campo de nombre por registro.
 
-    Reutiliza assign_entity_ids para que entity_id sea idéntico al del parquet zero_shot.
+    Reutiliza assign_entity_ids para que entity_id sea idéntico al del parquet sin_tokens.
     Salida: record_id, source_db, text ("col: valor"), entity_id.
     """
     import pandas as pd
@@ -87,9 +89,15 @@ def main():
 
     parser.add_argument(
         "--perfil",
-        choices=["B1", "B2", "zero_shot"],
-        default="B1",
-        help="Perfil: B1 (mínima intervención), B2 (limpieza + renombrado), zero_shot (Clave:Valor sin tokens)"
+        choices=["tesis0", "tesis1", "tesis2", "iner"],
+        default="tesis1",
+        help="Perfil: tesis0 (base), tesis1 (mínima intervención), tesis2 (limpieza + renombrado), iner (completa)"
+    )
+
+    parser.add_argument(
+        "--no-special-tokens",
+        action="store_true",
+        help="Desactiva tokens [BLK_*] y usa serialización Clave:Valor (modo Sin Tokens)"
     )
 
     parser.add_argument(
@@ -101,14 +109,20 @@ def main():
     parser.add_argument(
         "--solo-nombres",
         action="store_true",
-        help="Genera dataset con text = solo campo nombre (requiere --perfil zero_shot). Salida en zero_shot_nombres/"
+        help="Genera dataset con text = solo campo nombre (requiere --perfil tesis0 y --no-special-tokens). Salida en tesis0_sin_tokens_solo_nombres/"
     )
 
     args = parser.parse_args()
 
-    use_block_tokens = args.perfil != "zero_shot"
+    use_block_tokens = not args.no_special_tokens
     source_dir = Path(PROCESSED_DIR) / args.perfil.lower()
-    profile_dir = Path(PROCESSED_DIR) / args.perfil.lower()
+
+    # Evitar sobrescribir el dataset de fine-tuning con el de zero-shot
+    if args.no_special_tokens:
+        profile_dir = Path(PROCESSED_DIR) / f"{args.perfil.lower()}_sin_tokens"
+    else:
+        profile_dir = Path(PROCESSED_DIR) / args.perfil.lower()
+
     output_path = profile_dir / "dataset.parquet"
 
     csv_names = ["comorbilidad_clean", "econo_clean", "trabajo_social_clean"]
@@ -132,10 +146,10 @@ def main():
         print(f"Dataset output: {output_path}\n")
 
     if args.solo_nombres:
-        if args.perfil != "zero_shot":
-            print("Error: --solo-nombres solo es válido con --perfil zero_shot")
+        if args.perfil != "tesis0" or not args.no_special_tokens:
+            print("Error: --solo-nombres solo es válido con --perfil tesis0 y --no-special-tokens")
             return 1
-        output_nombres = Path(PROCESSED_DIR) / "zero_shot_nombres" / "dataset.parquet"
+        output_nombres = Path(PROCESSED_DIR) / "tesis0_sin_tokens_solo_nombres" / "dataset.parquet"
         print("Construyendo dataset solo-nombres...")
         _build_nombres_dataset(csv_paths, ["Comorbilidad", "Económico", "Trabajo Social"], output_nombres)
         return 0
