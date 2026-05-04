@@ -2,8 +2,10 @@
 Script de entrada para el pipeline de limpieza de CSVs crudos del INER.
 
 Uso:
-    python scripts/run_preprocessing.py --perfil A    # Limpieza completa para INER
-    python scripts/run_preprocessing.py --perfil B    # Mínima intervención para tesis
+    python scripts/run_preprocessing.py --perfil iner    # Limpieza completa para INER
+    python scripts/run_preprocessing.py --perfil tesis0  # Intervención mínima (Base ZS)
+    python scripts/run_preprocessing.py --perfil tesis1  # Mínima intervención para tesis
+    python scripts/run_preprocessing.py --perfil tesis2  # Limpieza + renombrado semántico
 """
 
 import argparse
@@ -16,7 +18,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 from record_linkage.config import RAW_FILES, PROCESSED_DIR, check_paths
-from record_linkage.data.preprocessing import run_profile_a, run_profile_b1, run_profile_b2, run_profile_zs
+from record_linkage.data.preprocessing import profile_iner, profile_tesis0, profile_tesis1, profile_tesis2
 
 
 def main():
@@ -25,16 +27,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Ejemplos:
-  python scripts/run_preprocessing.py --perfil A
-  python scripts/run_preprocessing.py --perfil B1
-python scripts/run_preprocessing.py --perfil B2
+  python scripts/run_preprocessing.py --perfil iner
+  python scripts/run_preprocessing.py --perfil tesis0
+  python scripts/run_preprocessing.py --perfil tesis1
+  python scripts/run_preprocessing.py --perfil tesis2
         """
     )
     parser.add_argument(
         '--perfil',
-        choices=['A', 'B1', 'B2', 'ZS'],
-        default='A',
-        help="Perfil de ejecución: A=limpieza completa (INER), B1=mínima intervención (tesis), B2=limpieza+renombrado, ZS=solo encoding (zero-shot)"
+        choices=['iner', 'tesis0', 'tesis1', 'tesis2'],
+        default='iner',
+        help="Perfil de ejecución: iner=completa (INER), tesis0=mínima (base ZS), tesis1=tesis mínima, tesis2=limpieza+renombrado"
     )
     parser.add_argument(
         '--check-paths',
@@ -49,12 +52,13 @@ python scripts/run_preprocessing.py --perfil B2
         return
 
     # Seleccionar función según perfil
-    profile_fn = (
-        run_profile_a  if args.perfil == 'A'  else
-        run_profile_b1 if args.perfil == 'B1' else
-        run_profile_b2 if args.perfil == 'B2' else
-        run_profile_zs
-    )
+    profile_map = {
+        'iner': profile_iner,
+        'tesis0': profile_tesis0,
+        'tesis1': profile_tesis1,
+        'tesis2': profile_tesis2,
+    }
+    profile_fn = profile_map[args.perfil]
     profile_name = f"Perfil {args.perfil}"
 
     print(f"\n{'='*60}")
@@ -62,7 +66,7 @@ python scripts/run_preprocessing.py --perfil B2
     print(f"{'='*60}\n")
 
     # Crear directorio de salida por perfil
-    out_dir = PROCESSED_DIR / ("zero_shot" if args.perfil == "ZS" else args.perfil.lower())
+    out_dir = PROCESSED_DIR / args.perfil
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Procesar cada CSV
