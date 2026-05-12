@@ -19,6 +19,7 @@ dependencies = [
     "pandas>=2.0",                   # manipulación de CSVs y DataFrames
     "pyarrow>=14.0",                 # lectura/escritura de .parquet
     "numpy>=1.24",                   # operaciones matriciales
+    "rapidfuzz>=3.0",                # métricas clásicas: Jaro-Winkler, Levenshtein (etiquetado v2)
 
     # --- Búsqueda vectorial ---
     # "faiss-cpu>=1.7",                # indexación ANN para inferencia
