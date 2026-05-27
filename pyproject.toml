@@ -28,6 +28,11 @@ dependencies = [
     # --- Aprendizaje contrastivo ---
     "scikit-learn>=1.3",             # métricas de evaluación (F1, precision, recall)
 
+    # --- Visualización ---
+    "matplotlib>=3.7",               # curvas de loss y figuras estáticas (PNG/SVG)
+    "umap-learn>=0.5",               # reducción de dimensión 768 → 2D/3D del espacio métrico
+    "plotly>=5.18",                  # scatter 3D interactivo (HTML) del espacio de embeddings
+
     # --- Configuración ---
     "python-dotenv>=1.0",            # carga de .env para rutas
 ]
