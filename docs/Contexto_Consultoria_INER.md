@@ -47,22 +47,24 @@ Módulos desarrollados en Python en un repositorio organizado que:
 Un esquema relacional limpio, libre de redundancias y estructurado en múltiples tablas normalizadas (pendiente de definir el diseño final) vinculadas lógicamente mediante llaves primarias y foráneas (PK/FK). Este diseño garantiza la integridad referencial y la disponibilidad de la información para su consulta directa o para sistemas de procesamiento automático.
 
 ### Producto 4: Diccionarios de Datos
-El INER propuso "Creación de un diccionario de datos de las bases de datos identificando las columnas susceptibles a ser consideradas llaves foráneas". Me tomé la libertad de proponer entregar dos documentos técnicos (.csv) complementarios para documentar el ciclo de vida del dato, desde la exploración de su estado original hasta su consolidación final:
+El INER propuso "Creación de un diccionario de datos de las bases de datos identificando las columnas susceptibles a ser consideradas llaves foráneas". Se entregan dos documentos técnicos complementarios que documentan el ciclo de vida del dato, desde la exploración de su estado original hasta su consolidación final:
 
-1. **`Diccionario_Origen_INER.csv` (El Diagnóstico):** Bitácora de auditoría que perfila la calidad, anomalías y reglas de limpieza de las bases de datos originales.
-   * *Estructura:*
-   ```| Archivo_Origen | Columna | Tipo_Dato_Detectado | Total_Registros |Unicos | Nulos | Pct_Nulos | Descripcion | Hallazgos | Transformacion |```
+1. **`Diccionario_Origen_INER.csv` (El Diagnóstico):** Bitácora de auditoría que perfila la calidad y anomalías detectadas en las bases de datos originales. Versión final lean de 6 columnas:
+   ```| Archivo_Origen | Columna | Tipo_Dato_Detectado | Unicos | Nulos | Descripcion | Hallazgos |```
 
    * *Definiciones clave:*
-        * **Hallazgos:** Anomalias, tipos de errores detectados, incluyendo typos, inconsistencias tipográficas, valores faltantes, duplicados, valores fuera de rango o no válidos, formatos incorrectos (ej. orden de nombres, tipo de dato inesperado).
+        * **Descripcion:** Significado semántico de la columna y panorama general (categorías dominantes, rango, formato), derivado del Cap 1 del reporte (Caracterización de Columnas).
+        * **Hallazgos:** Anomalías y aspectos de calidad: typos, inconsistencias tipográficas, valores faltantes, duplicados, valores fuera de rango, formatos incorrectos, redundancias entre columnas, etc., derivados del Cap 2 del reporte (Calidad de los Datos).
 
-        * **Transformación:** Reglas de limpieza y estandarización aplicadas, como conversión de tipos de datos (ej. casteo de string a int), conversión a minúsculas/mayúsculas, eliminación de espacios, eliminación de columnas redundantes, renombrado para mejorar identificación, limpieza por expresiones regulares, etc.
+   * *Columnas consideradas durante el diseño y excluidas en la versión final:*
+        * **`Transformacion`** — descartada porque las reglas de limpieza viven en el código del pipeline (`preprocessing.py`, `consolidation.py`) y replicarlas en el diccionario crearía dos fuentes de verdad divergentes. El JSON consolidado entrega datos crudos del registro, las transformaciones aplicadas para la vinculación son trazables en los scripts.
+        * **`Total_Registros`** y **`Pct_Nulos`** — `Total_Registros` es redundante (igual a `Unicos + Nulos` para campos sin duplicados, y a una constante por archivo); `Pct_Nulos` se deriva trivialmente de `Nulos / Total_Registros`. No aportan información nueva.
+        * **`Tipo_Variable`** y **`Bloque_Semantico`** — útiles internamente para el diseño de la serialización del eje tesis, pero ajenas a la auditoría que pide el INER. Quedan documentadas en `docs/Metodologia_arquitectura.md` y en el código (`SEMANTIC_BLOCKS`).
 
-2. **`Diccionario_Final_INER.csv` (El Entregable):** Mapa técnico que describe la estructura de la nueva base de datos consolidada, sirviendo como guía para el departamento de datos del INER.
-   * *Estructura:*
-    ```| Tabla_SQL | Columna_Final | Tipo_Dato_Final | Llave | Descripcion_Limpia |```
+2. **`Diccionario_Final_INER.csv` (El Entregable):** Mapa técnico de la estructura del JSON consolidado entity-centric. La especificación formal vive en **`consolidated_entities.schema.json`** (JSON Schema Draft 2020-12), que es la fuente de verdad validable; el CSV es una proyección legible de 3 columnas derivada del Schema:
+   ```| campo | tipo | descripcion |```
 
-Sin embargo, esto queda pendiente de confirmar por parte del INER, puede ser que este entregable se reduzca solo a un diccionario descriptivo de los datos originales (en cuyo caso estaría listo) o a algo más simple.
+   El schema describe la jerarquía `entity → linked_items[] → scores[]` y se complementa con `metodos_comparacion.json` (catálogo de métricas: nombre, campos sobre los que opera, rango, semántica). El esquema relacional planteado originalmente (`Tabla_SQL | Columna_Final | Tipo_Dato_Final | Llave | Descripcion_Limpia`) se descartó porque el entregable final es JSON anidado, no tabular — una proyección a SQL crearía pérdida de información en los campos array (`linked_items`, `scores`).
 
 ---
 
@@ -87,7 +89,7 @@ $Entity_{id} = [0 , ...., e_i ..., , N-1]$ $N$: Entidades únicas $e_i >= 1$, no
 
 
 * **Implementación de métricas de similitud para vinculación de registros:**
-El análisis exploratorio de datos reveló que los nombres propios y expedientes son los campos más susceptibles a ser considerados como llaves foráneas para la vinculación entre bases. Sin embargo, dada la ausencia de identificadores únicos confiables, se definió que el enfoque de comparación sintáctica y métricas clásicas se centrará en la inspección de los registros vinculados entre bases pendientes a confirmar manualmente. Actualmente hay 1569 pares de registros en esta situación, la idea es que utilizando estas métricas, se puedan reducir el número de registros a revisar manualmente, estableciendo umbrales de similitud para automatizar la vinculación de registros con alta confianza
+El análisis exploratorio de datos reveló que los nombres propios y expedientes son los campos más susceptibles a ser considerados como llaves foráneas para la vinculación entre bases. Sin embargo, dada la ausencia de identificadores únicos 100% confiables, se definió que el enfoque de comparación sintáctica y métricas clásicas se centrará en la inspección de los registros vinculados entre bases pendientes a confirmar manualmente. Actualmente hay 1569 pares de registros en esta situación, la idea es que utilizando estas métricas, se puedan reducir el número de registros a revisar manualmente, estableciendo umbrales de similitud para automatizar la vinculación de registros con alta confianza.
 Pendiente de definir con el asesor de la estancia la interfaz de visualización de estos pares para su revisión manual, se ha propuesto una tabla de excel que muestre los registros lado a lado con las métricas de similitud calculadas para facilitar la inspección y la toma de decisiones. Esto permitirá acelerar el proceso de revisión manual, enfocándose en los casos más difíciles de vincular.
 
 
@@ -102,7 +104,7 @@ Pasos de identificación utilizados para llegar a los pares finales (por Uziel):
 1. Expedientes coincidentes
 2. Expediente + Nombre normalizado Version 1
 3. Expediente + Nombre normalizado Version 2
-4. Calculo de métricas clásicas con un umbral
+4. Calculo de métricas clásicas con un umbral (pendiente de implementar y definir umbral)
 
 ---
 
@@ -114,13 +116,13 @@ Este entregable resuelve el pendiente de **Implementación de métricas de simil
 
 Una fila por par de registros que comparten expediente entre distintos CSV. Narra el proceso de filtrado progresivo:
 
-| `entity_id` | `exp` | `nombre_a` | `source_a` | `nombre_b` | `source_b` | `paso_identificacion` | `levenshtein` | `jaro_winkler` |
+| `entity_id` | `source_a` | `source_b` | `exp` | `nombre_a` | `nombre_b`| `paso_identificacion` | `levenshtein` | `jaro_winkler` |
 |---|---|---|---|---|---|---|---|---|
 
 - **`paso_identificacion`** toma 3 valores (criterio de confirmación del par):
   - `llave_exacta` — expediente + nombre_norm_v2 coinciden (9,855 pares confirmados automáticamente)
   - `metrica_clasica` — expediente coincide, nombre no exacto pero supera umbral Jaro-Winkler/Levenshtein (subconjunto de los 1,569)
-  - `no_confirmado` — expediente coincide pero nombre no supera ningún umbral; candidatos a revisión manual
+  - `no_confirmado` — expediente coincide pero nombre no supera ningún umbral; candidatos a revisión manual o descartar como vinculados
 - **`levenshtein` y `jaro_winkler`** se calculan para los 11,424 pares — permite verificar que `llave_exacta` tiene métricas altas y `no_confirmado` valores más bajos o mixtos.
 - Las tríadas aparecen aquí como múltiples pares (C(3,2) = 3 filas por entidad en 3 CSV).
 - Los **singletons no aparecen** en esta hoja por construcción (necesitan al menos 2 registros para formar un par).
@@ -139,3 +141,94 @@ Vista resumida a nivel de paciente. Aquí sí aparecen los tres tipos:
 ### Nota de diseño
 - La Versión 1 de normalización de nombre se omite del proceso — no aportó mejoras respecto a v2 y añade ruido a la narrativa.
 - Pendiente de aprobación final por la asesora antes de implementar.
+
+---
+
+## 7. Entregable oficial aprobado: JSON consolidado entity-centric (2026-05-12)
+
+**Estado:** confirmado por la Dra. Mariana Esther Martínez Sánchez el 2026-05-12. Supersede el diseño Excel de 3 hojas de la sección 6 (conservada como histórico). Revisión final con los VIC del INER programada para el 2026-05-14.
+
+**Documento formal enviado a la asesora:** `~/Documents/Maestria/Tesis/Propuesta_Entregables_INER/propuesta_entregable.tex` — sección `Propuesta unificada: JSON por entidad`.
+
+### 7.1 Diseño técnico
+
+Un único archivo `.json` consolidado: arreglo de **16,222 objetos**, uno por entidad única (`entity_id`). Cada objeto agrupa los registros originales de las 3 bases que corresponden al mismo paciente, sus pares de vinculación bilateral con métricas y un campo `decision` editable para la revisión manual de la asesora.
+
+```json
+{
+  "entity_id": 1219,
+  "exp": 55810,
+  "tipo_entidad": "dupla",
+  "decision": null,
+  "pairs": [
+    {
+      "source_a": "Comorbilidad",
+      "source_b": "Trabajo Social",
+      "criterio": "no_confirmado",
+      "nombre_a": "APOLINAR DANIEL PRADO",
+      "nombre_b": "APOLINAR ARMANDO PRADO",
+      "lev": 7,
+      "jw": 0.812
+    }
+  ],
+  "records": [
+    { "source": "Comorbilidad",   "exp": 55810, "nombre_norm": "...", "edad": 54, ... },
+    { "source": "Trabajo Social", "exp": 55810, "nombre_norm": "...", "diagnostico": "...", ... }
+  ]
+}
+```
+
+**Tratamiento de heterogeneidad y casos límite:**
+- Cada elemento de `records` conserva solo los campos propios de su fuente (no se imponen columnas comunes ni nulos artificiales).
+- Expedientes faltantes (los 31 casos NaN-TS de la base Económico) se serializan como `"exp": null`.
+- Tríadas: el array `pairs` contiene los $\binom{3}{2}=3$ pares bilaterales (uno por cruce entre bases).
+- Duplas: `pairs` con un solo par.
+- Singletons: `pairs = []`.
+
+### 7.2 Insumos del repo para construir el JSON
+
+| Campo del JSON | Fuente en el repo |
+|---|---|
+| `entity_id`, `exp`, `tipo_entidad` | derivado de `pairs_classified.parquet` y `dataset_v2.parquet` (artefactos del pipeline v2 en `~/Data/INER/processed/tesis1/`) |
+| `pairs[]` | filas de `pairs_classified.parquet` agrupadas por `entity_id` (ya contienen `criterio`, `lev`, `jw`, fuentes y nombres) |
+| `records[]` | filas originales de los 3 CSV crudos en `~/Data/INER/raw/`, unidas por `(source, source_row_id)` y filtradas por las que pertenecen a cada `entity_id` |
+| `decision` | inicializado en `null`; se actualiza vía `overrides.csv` tras revisión manual de la Dra. |
+
+`tipo_entidad` se calcula directamente como `len(records)`: 1 → `singleton`, 2 → `dupla`, 3 → `tríada`. Las columnas booleanas de presencia por base (`en_comorbilidad`, `en_econo`, `en_trabajo_social`) que pedía la versión Excel se derivan inspeccionando `records[].source`, no se serializan en el JSON.
+
+### 7.3 Posición en el pipeline
+
+El JSON pasa a ser el **tronco común** del que cuelgan ambos ejes del proyecto:
+
+```
+pairs_classified.parquet  +  CSV crudos
+              │
+              ▼
+   build_consolidated_json.py     ← (por implementar)
+              │
+              ▼
+    consolidated_entities.json    ← fuente de verdad
+              │
+              ├─→ pairs_classified.xlsx   (vista derivada para revisión manual de la Dra.)
+              ├─→ dataset_v2.parquet      (serialización para ingesta del modelo — eje tesis)
+              └─→ Diccionario_Final_INER  (derivado del schema del JSON)
+```
+
+`overrides.csv` sigue siendo el puente bidireccional: la Dra. anota en el Excel, las anotaciones se traducen a `overrides.csv`, y un `finalize` regenera el JSON con `decision` actualizado.
+
+### 7.4 Cobertura de los entregables originales
+
+Este único artefacto resuelve directamente 3 de los 4 productos de la sección 3:
+
+| Entregable original | Cómo lo cubre el JSON |
+|---|---|
+| Producto 2 — Pipeline de limpieza | El script generador (`build_consolidated_json.py`) más los módulos ya existentes en `src/record_linkage/data/` y `utils/` constituyen el pipeline reproducible. |
+| Producto 3 — Base consolidada | La estructura entity-centric integra los registros de las 3 fuentes bajo `entity_id` común, con integridad referencial sin redundancias. Reemplaza el esquema relacional multi-tabla originalmente propuesto. |
+| Producto 1 — Reporte de metodología | Los campos `criterio`, `lev`, `jw` dentro de `pairs` documentan in-situ el método de vinculación; el reporte ya entregado (`Reporte_INER.pdf`) cubre el resto. |
+| Producto 4 — Diccionarios | El schema del JSON es la base directa para derivar `Diccionario_Final_INER.csv` (entregable separado pendiente). |
+
+### 7.5 Pendientes
+
+1. ✅ **(2026-05-27) Implementado — generador del JSON consolidado (schema v2).** `src/record_linkage/data/consolidation.py` (`build_entity_objects`, lógica pura) + `scripts/build_consolidated_json.py`. Salida: `~/Data/INER/processed/iner/consolidated_entities.json` (15,283 entidades, 29 MB). Schema **v2** = `items` anidado (`{item, source, linking_values, record}`) sin la redundancia de arrays paralelos; `scores` es un protocolo de métodos extensible (módulo `data/comparison_methods.py`), recalculado y solo cross-source. Diseño completo en `propuesta_entregable_JSON.md` → "Diseño v2"; decisiones en `design_decisions.md` → bloque ESTADO 2026-05-27.
+2. ✅ **(2026-05-27) Implementado — documentación del entregable.** Spec formal = **JSON Schema** (`docs/consolidated_entities.schema.json`, Draft 2020-12, editado a mano y validable). `scripts/build_data_dictionary.py` lo proyecta a `~/Data/INER/processed/iner/Diccionario_Final_INER.csv` (vista plana `campo|tipo|descripcion`, ~14 filas, derivada del schema), emite `metodos_comparacion.json` (catálogo desde `comparison_methods.REGISTRY`) y copia el schema al bundle.
+3. **Revisión con los VIC del INER** — programada para 2026-05-14.

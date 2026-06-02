@@ -84,6 +84,7 @@ El ciclo de vida del dato se bifurca para satisfacer los entregables de ambos ej
 - **Fuente:** `~/Documents/Maestria/Tesis/Reporte_Consultoría/Reporte_INER.tex`
 - **PDF compilado:** `~/Documents/Maestria/Tesis/Reporte_Consultoría/out/Reporte_INER.pdf`
 - **Estructura:** `Capitulos/`, `Figuras/`, `Resultados/`, `Bibliografia/`, `Preambulo.tex`
+- **Resumen destilado:** `~/Documents/Maestria/Tesis/Reporte_Consultoría/Capitulos/5_Resumen_Comparativo.tex` (sección final que sintetiza los hallazgos de los EDAs y el análisis de duplicados y vinculados).
 
 ### Anexos de Bloques Semánticos y estimación de tokens
 - **Fuente:** `~/Documents/Maestria/Tesis/Anexo_BS_T/Reporte_BS_y_T.tex`

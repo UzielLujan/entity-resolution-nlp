@@ -344,6 +344,62 @@ Las dos etapas del pipeline tienen objetivos de entrenamiento distintos:
 - **Etapa 2 (Cross-Encoder):** optimizada con BCE como clasificador binario de alta
   precisión sobre los candidatos recuperados. Pendiente de implementar en `bce.py`.
 
+### Ubicación del generador del JSON consolidado entity-centric
+
+**Decisión (2026-05-12):** El JSON consolidado entity-centric — entregable oficial aprobado por la Dra. Martínez que materializa el producto "Base de Datos Consolidada" del INER (ver sección 7 de `Contexto_Consultoria_INER.md`) — se construye con la siguiente separación módulo / entrypoint:
+
+- **Lógica reutilizable:** `src/record_linkage/data/consolidation.py`
+  Funciones puras y testeables sin I/O: ensamblado del objeto de entidad, derivación de `tipo_entidad` desde `len(records)`, construcción del array `pairs` bilateral, serialización segura de `NaN → null`.
+- **Entrypoint CLI:** `scripts/build_consolidated_json.py`
+  Wrapper delgado que lee `pairs_classified.parquet` + los 3 CSV crudos, agrupa por `entity_id`, invoca a `consolidation`, y escribe `~/Data/INER/processed/tesis1/consolidated_entities.json`.
+
+**Motivo:** Esto materializa la separación Perfil A (INER) / Perfil B (tesis) ya establecida — `consolidation.py` queda formalmente reservado al eje INER, `dataset.py` al eje tesis. La división módulo/script sigue el mismo patrón ya usado por `data/dataset_v2.py` ↔ `scripts/run_dataset_v2.py`, y mantiene la lógica reutilizable para regenerar el JSON tras aplicar `overrides.csv`.
+
+**Supersede:** La intención original de generar un esquema relacional multi-tabla desde `consolidation.py`. El JSON entity-centric cumple la integridad referencial sin necesidad de múltiples tablas SQL — ver sección 7.3 de `Contexto_Consultoria_INER.md` para el flujo completo del pipeline derivado.
+
+**ESTADO (2026-05-27) — IMPLEMENTADO (schema v2).** El entregable oficial es el **schema v2**
+(`items` anidado), diseñado en `propuesta_entregable_JSON.md` → "Diseño v2". Decisiones:
+
+- **Estructura `items` anidada (sin redundancia).** Un único array `items`; cada item =
+  `{item, source, linking_values, record}`. Elimina los arrays paralelos `linked_items`/`records`
+  de la v1, que duplicaban `source` y obligaban a alineación posicional frágil. `item` es un id
+  0-based estable que `scores.items` referencia. `cluster_size = len(items)` reemplaza a `tipo_entidad`.
+- **`scores` = protocolo de métodos extensible** (módulo nuevo `data/comparison_methods.py`, con
+  registro `REGISTRY` de funciones nombradas). `method` = nombre de una función empaquetada (visión
+  de Mireles). Hoy `jw_nombre`, `lev_nombre`; listo para composites y `cos_biencoder` sin tocar el
+  schema. Cada entrada `{method, items:[i,j], value}`.
+- **Scores recalculados, no extraídos.** Se computan con `REGISTRY` sobre `nombre_norm` (rapidfuzz),
+  reproduciendo idénticos los valores que tenía `pairs_classified` pero **sin depender de ese
+  artefacto** → el entregable es autocontenido (facilita la separación de repos). Punto #2 resuelto.
+- **Solo pares cross-source.** Se puntea cada par de items de bases distintas; los pares intra-fuente
+  no generan score (es dedup, no la pregunta de vinculación entre bases). Aun así, `items` conserva
+  TODOS los registros del cluster (membresía completa). Clusters sin par cross-source → `scores: []`
+  (singletons + 13 clusters mono-fuente).
+- **El expediente NO es compuerta** en ningún método (los Dres. rechazaron filtrar por expediente).
+  `jw-exp`/`lev-exp` de Mireles sería redundante: dentro de un cluster todos ya comparten exp por
+  construcción. `exp` queda como dato visible. Limitación heredada (clusters exp-gated) documentada
+  en `propuesta_entregable_JSON.md` → "Alcance y limitación".
+- **`record` = todas las columnas crudas** por fuente (sin `Unnamed`), valores originales de
+  `~/Data/INER/raw/`. Mapeo `record_id`→fila cruda válido: `preprocessing` solo dropea columnas, nunca
+  reordena/elimina filas (conteos raw==clean: 4632 / 4278 / 14796; total 23,706).
+- **`jw`/`lev` = similitud normalizada [0,1]** (rapidfuzz `normalized_similarity`), no distancia cruda
+  (el `lev: 7` del ejemplo de la propuesta era ilustrativo).
+- **Rutas.** Entrada: perfil canónico `tesis` (`output/tok_skipnull/dataset.parquet` para entity_id,
+  `interim/records_interim.parquet`). Salida: perfil **`iner`** (`consolidated_entities.json` 29 MB +
+  `Diccionario_Final_INER.csv`). Carpeta separada de los ejes tesis.
+- **Producto 4 — documentación del entregable.** El spec formal es un **JSON Schema**
+  (`docs/consolidated_entities.schema.json`, Draft 2020-12) — fuente de verdad de la estructura y las
+  descripciones, **editado a mano** y validable (`jsonschema`; el v2 cumple con 0 errores). `scripts/build_data_dictionary.py`
+  lo **proyecta** a `iner/Diccionario_Final_INER.csv` (vista plana `campo | tipo | descripcion` con rutas
+  con puntos, ~14 filas, derivada del schema — no se edita a mano), emite `iner/metodos_comparacion.json`
+  (catálogo desde `comparison_methods.REGISTRY`) y copia el schema al bundle. Se abandonó el CSV anterior
+  (`seccion|campo|tipo|fuente|descripcion`, 82 filas) que enumeraba columnas crudas duplicando el
+  `Diccionario_Exploratorio.csv`.
+- **Compatibilidad:** `build_entity_objects(schema_version="v1")` reproduce el schema histórico
+  (arrays paralelos, scores extraídos de `pairs_classified`). La v1 queda solo como histórico.
+
+---
+
 ### `.sh` en la raíz del repo
 
 Los scripts de lanzamiento SLURM deben vivir en la raíz del proyecto en el
@@ -351,6 +407,24 @@ cluster. La directiva `--chdir` de SLURM fija ese punto como directorio de
 trabajo, y todas las rutas relativas dentro del `.sh` (incluyendo `logs/`,
 `scripts/`, `src/`) se resuelven desde ahí. Colocarlos en una subcarpeta
 como `scripts/` rompe esta resolución sin configuración adicional no probada.
+
+### Labeling v2 acoplado a perfil `tesis1` — deuda consciente (2026-05-16)
+
+El pipeline de etiquetado v2 (`build_pairs_df`, `classify_pairs`, `assign_entity_ids`) tiene `_COL_MAP` en `utils/pairs.py` hardcodeado con los nombres de columna que produce el perfil `tesis1` (M0+M1+M4+M5). Por eso `--perfil` en `run_dataset_v2.py` acepta cualquier string pero **solo `tesis1` corre sin romper**: `tesis0` no tiene `NOMBRE_COMPLETO` (falta M4), `tesis2` e `iner` renombran columnas con M7.
+
+Esto acopla una pregunta de **identidad del paciente** (¿son la misma persona?) con una decisión de **nivel de limpieza** (qué módulos aplicar para entrenar), que son cosas semánticamente distintas. El refactor correcto separa dos responsabilidades hoy fundidas:
+
+```
+LABELING (perfil-agnóstico, una sola vez sobre raw + M0+M1+M4 mínimos internos)
+   ↓ entity_id + criterio + decision por (source, row_idx)
+SERIALIZATION (per-perfil, varias veces según experimento)
+   ↓ text por record_id
+MERGE → dataset_v2_<perfil>.parquet
+```
+
+**Se pospone** porque (a) bloquearía la revisión humana de los 513 `no_confirmado` que es el siguiente milestone, y (b) las decisiones manuales que se marquen sobre el xlsx actual son perfil-agnósticas por naturaleza (identidad del par no depende del cleaning) → se transfieren sin pérdida al pipeline refactorizado cuando llegue.
+
+**Nota relacionada — simplificación de perfiles de la tesis:** la distinción `tesis0` / `tesis1` / `tesis2` es probablemente redundante. La diferencia operativa real entre `tesis0` (zero-shot) y `tesis1` (entrenamiento) es solo el **modo de serialización** (con/sin tokens especiales `[BLK_*]`), no el nivel de limpieza. `dataset.py` v1 ya soporta este toggle vía `use_block_tokens=False` (limitado hoy a entradas de `tesis0` por acoplamiento implícito). Cuando se haga el refactor de labeling, conviene **colapsar todos los perfiles tesis en uno solo** y exponer el modo de serialización como flag — más simple y más honesto con la separación de conceptos.
 
 ---
 
