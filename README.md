@@ -102,7 +102,9 @@ pip install uv
 uv pip install -e .
 ```
 
-El flag `-e` instala `record_linkage` en modo editable — los cambios en `src/` se reflejan sin reinstalar. Dependencias de desarrollo (jupyter, pytest, ruff) se instalan con `uv pip install -e ".[dev]"`.
+Las dependencias y la configuración del paquete `record_linkage` viven en `pyproject.toml` como único archivo de entorno: `uv` resuelve `[project.dependencies]` para el entorno base y `[project.optional-dependencies].dev` para herramientas (jupyter, pytest, ruff).
+
+El flag `-e` instala `record_linkage` en modo editable, los cambios en `src/` se reflejan sin reinstalar. Las dependencias de desarrollo se instalan con `uv pip install -e ".[dev]"`.
 
 ### 2. Descargar modelos
 
