@@ -4,7 +4,7 @@ Etapa 1 — Bi-Encoder con Multiple Negatives Ranking Loss (MNRL).
 Uso (smoke test local, 1 época):
     python scripts/run_train_biencoder.py \
         --model BETO \
-        --parquet ~/Data/INER/processed/tesis1/dataset_split.parquet \
+        --dataset ~/Data/INER/processed/tesis1/dataset_split.parquet \
         --output ~/Data/INER/models/checkpoints/beto_mnrl_run03 \
         --epochs 1 --batch-size 8 --n-aug 0 --max-seq-length 384
 
@@ -32,7 +32,7 @@ warnings.filterwarnings("ignore", message="Detected call of.*lr_scheduler")
 from record_linkage.config import MODELS_DIR, PROCESSED_DIR, TRAINING_DIR
 from record_linkage.data.augmentation import AugmentationConfig, augment
 from record_linkage.models.biencoder import build_biencoder
-from record_linkage.utils.mnrl import dump_mnrl_batch
+from record_linkage.training.mnrl import dump_mnrl_batch
 
 # Palabras ancla para warm initialization
 _WARM_ANCHORS = {
@@ -253,7 +253,7 @@ def eval_loss(st_model, df_val: pd.DataFrame, batch_size: int, temperature: floa
 def main():
     parser = argparse.ArgumentParser(description="Entrena Bi-Encoder con MNRL")
     parser.add_argument("--model",          default="BETO")
-    parser.add_argument("--parquet",        default=None)
+    parser.add_argument("--dataset",        default=None)
     parser.add_argument("--output",         default=None)
     parser.add_argument("--epochs",         type=int,   default=2)
     parser.add_argument("--batch-size",     type=int,   default=8)
@@ -270,6 +270,9 @@ def main():
                         help="Guarda textos y matrices MNRL de 3 batches en outputs/training/<run>/viz/")
     parser.add_argument("--patience",      type=int, default=3,
                         help="Épocas sin mejora en val_loss antes de detener (0 = desactivado)")
+    parser.add_argument("--only-best",     action="store_true",
+                        help="Solo guarda best/ — omite epoch_NN/ por época. Ahorra disco "
+                             "(cada checkpoint pesa ~440 MB).")
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -280,7 +283,7 @@ def main():
     print(f"\nDispositivo: {device}")
 
     model_path   = MODELS_DIR / "pretrained" / args.model
-    parquet_path = Path(args.parquet) if args.parquet else PROCESSED_DIR / "tesis1" / "dataset_split.parquet"
+    parquet_path = Path(args.dataset) if args.dataset else PROCESSED_DIR / "tesis1" / "dataset_split.parquet"
     output_dir   = Path(args.output)  if args.output  else MODELS_DIR / "checkpoints" / f"{args.model}_mnrl"
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -346,9 +349,10 @@ def main():
         print(f"\n  Época {epoch}/{args.epochs} — "
               f"train_loss={tr_loss:.4f}  val_loss={vl_loss:.4f}  {elapsed:.0f}s")
 
-        ckpt = output_dir / f"epoch_{epoch:02d}"
-        st_model.save(str(ckpt))
-        print(f"  Checkpoint guardado: {ckpt}")
+        if not args.only_best:
+            ckpt = output_dir / f"epoch_{epoch:02d}"
+            st_model.save(str(ckpt))
+            print(f"  Checkpoint guardado: {ckpt}")
 
         if not np.isnan(vl_loss) and vl_loss < best_val_loss:
             best_val_loss = vl_loss
