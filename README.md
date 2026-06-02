@@ -14,7 +14,7 @@ El INER cuenta con tres bases de datos independientes de pacientes COVID-19 que 
 | Costos y Económico | 4,632 | costos de atención, datos socioeconómicos |
 | Trabajo Social | 14,796 | datos demográficos, familia, situación social |
 
-Ground truth final del dataset v2 (tras revisión manual de los pares limítrofes):
+Ground truth final del dataset v2 (tras revisión manual de los pares):
 **15,283 entidades únicas** y **11,447 pares cross-DB confirmados** = 9,855 por llave exacta + 1,118 por métrica clásica + 493 hard positives + 21 hard negatives marcados manualmente.
 
 ---
@@ -106,7 +106,7 @@ El flag `-e` instala `record_linkage` en modo editable — los cambios en `src/`
 
 ### 2. Descargar modelos
 
-Los modelos se descargan localmente como SentenceTransformer con tokens especiales ya registrados, para poder transferirlos al cluster sin acceso a internet.
+Los modelos se descargan localmente como SentenceTransformer con tokens especiales ya registrados, para poder transferirlos al cluster de cómputo sin acceso a internet.
 
 ```bash
 python scripts/download_model.py --all
@@ -273,4 +273,4 @@ Los tokens `[BLK_ID]`, `[BLK_CLIN]`, `[BLK_GEO]`, `[BLK_ADMIN]`, `[BLK_SOCIO]`, 
 - [ ] Blocking semántico BE+ANN (FAISS) — sustituye al filtro por expediente en producción
 - [ ] Indexación vectorial e inferencia en producción (`inference/retrieval.py`, `reranking.py`)
 - [ ] Demo interactiva Streamlit + RAG (LLM auditor, human-in-the-loop)
-- [ ] Manuscrito de tesis — foco actual; cuello de botella es escritura, no experimentación
+- [ ] Manuscrito de tesis, foco actual.
