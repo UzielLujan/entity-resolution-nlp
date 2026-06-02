@@ -58,6 +58,28 @@ GROUND_TRUTH_FILES = {
     "econo_ts":          GROUND_TRUTH_DIR / "pares_residuales_económico_trabajo_social.csv",
 }
 
+# ── Resolución de subdirectorios por perfil ───────────────────────────────────
+# El perfil `tesis` (workspace canónico post-Ruta A) usa la estructura
+# clean/ interim/ output/. Los perfiles legacy (tesis0, tesis1, tesis2, iner)
+# mantienen estructura flat. Esta función centraliza el dispatch.
+def perfil_paths(perfil: str) -> dict:
+    """Devuelve los 3 subdirectorios canónicos de un perfil.
+
+    Para `tesis`: clean/ (CSVs limpios), interim/ (xlsx + parquets de auditoría),
+    output/ (variantes de dataset.parquet + splits).
+
+    Para perfiles legacy: los 3 apuntan al mismo directorio plano.
+    """
+    base = PROCESSED_DIR / perfil
+    if perfil == "tesis":
+        return {
+            "clean":   base / "clean",
+            "interim": base / "interim",
+            "output":  base / "output",
+        }
+    return {"clean": base, "interim": base, "output": base}
+
+
 # ── Validación opcional (útil al arrancar un script o notebook) ───────────────
 def check_paths() -> None:
     """Imprime el estado de todas las rutas críticas del proyecto."""
