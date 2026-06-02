@@ -89,7 +89,8 @@ def _format_value(val) -> str:
 
 
 def _serialize_block(row: pd.Series, block_cols: List[str], block_name: str,
-                     use_block_tokens: bool = True) -> str:
+                     use_block_tokens: bool = True,
+                     skip_null: bool = False) -> str:
     """Serializa un bloque semántico individual.
 
     Args:
@@ -97,6 +98,8 @@ def _serialize_block(row: pd.Series, block_cols: List[str], block_name: str,
         block_cols: lista de columnas del bloque (nombres exactos del CSV)
         block_name: nombre del bloque (ej: "[BLK_ID]")
         use_block_tokens: si False, omite tokens especiales (para zero-shot)
+        skip_null: si True, omite las columnas con valor nulo (no emite placeholder NULL).
+                   Eje independiente de use_block_tokens para experimento 2×2.
 
     Returns:
         Fine-tuning:  "[BLK_*] [COL] col1 [VAL] val1 [COL] col2 [VAL] val2 ..."
@@ -118,8 +121,11 @@ def _serialize_block(row: pd.Series, block_cols: List[str], block_name: str,
                 block_values.append(f"[COL] {col} [VAL] {val}")
             else:
                 block_values.append(f"{col}: {val}")
-        elif use_block_tokens:
-            block_values.append(f"[COL] {col} [VAL] NULL")
+        elif not skip_null:
+            if use_block_tokens:
+                block_values.append(f"[COL] {col} [VAL] NULL")
+            else:
+                block_values.append(f"{col}: NULL")
 
     if not has_real_value:
         return ""
@@ -129,7 +135,8 @@ def _serialize_block(row: pd.Series, block_cols: List[str], block_name: str,
 
 
 def serialize_record(row: pd.Series, csv_name: str,
-                     use_block_tokens: bool = True) -> str:
+                     use_block_tokens: bool = True,
+                     skip_null: bool = False) -> str:
     """Serializa un registro tabular a secuencia de texto.
 
     Args:
@@ -137,6 +144,8 @@ def serialize_record(row: pd.Series, csv_name: str,
         csv_name: Nombre del CSV — debe ser exactamente 'comorbilidad', 'econo' o 'trabajo_social'
         use_block_tokens: True → incluye tokens [BLK_*] (entrenamiento fine-tuned)
                           False → texto limpio sin tokens (zero-shot / baseline)
+        skip_null: True → omite columnas con valor nulo (texto más compacto).
+                   False → emite placeholder NULL para columnas vacías.
 
     Returns:
         Fine-tuning: "[BLK_ID] [COL] nombre [VAL] Juan García [BLK_ADMIN] [COL] expediente [VAL] 12345 ..."
@@ -157,7 +166,7 @@ def serialize_record(row: pd.Series, csv_name: str,
             if csv_name == 'trabajo_social' and block_name == '[BLK_ID]' and 'NOMBRE_COMPLETO' in row.index:
                 block_cols = ["NOMBRE_COMPLETO"] + [c for c in block_cols if c not in ["APELLIDO PATERNO", "APELLIDO MATERNO", "NOMBRE"]]
 
-            block_text = _serialize_block(row, block_cols, block_name, use_block_tokens)
+            block_text = _serialize_block(row, block_cols, block_name, use_block_tokens, skip_null)
             if block_text:
                 serialized_blocks.append(block_text)
 
