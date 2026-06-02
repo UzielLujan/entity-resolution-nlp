@@ -1,8 +1,5 @@
 """Construction and classification of candidate record pairs for entity resolution."""
 
-from pathlib import Path
-from typing import Optional
-
 import pandas as pd
 from rapidfuzz.distance import JaroWinkler
 from rapidfuzz.distance import Levenshtein
@@ -36,9 +33,8 @@ def build_pairs_df(
     """Construye el DataFrame completo de pares candidatos cross-CSV.
 
     Genera todos los pares de registros que comparten expediente entre CSVs distintos,
-    más los pares con expediente NaN que coinciden en nombre_norm (casos Eco-TS).
-    Replica la lógica de Duplicados_INER.ipynb sección 4.3 y el bloque diagnóstico
-    de build_dataset(), consolidada como fuente única de verdad.
+    más los pares con expediente NaN en Económico que coinciden en nombre_norm contra
+    cualquier otro source (Comorbilidad o Trabajo Social).
 
     Args:
         df_econo: DataFrame del CSV Económico (ya preprocesado)
@@ -52,8 +48,9 @@ def build_pairs_df(
             exp_shared (int64 o pd.NA), nombre_norm_a, nombre_norm_b, nan_exp (bool)
 
     Notas:
-        - Los pares NaN-TS (exp NaN en Económico, mismo nombre_norm en TS) se marcan
-          con nan_exp=True y exp_shared=pd.NA. Hay ~31 de estos casos.
+        - Los pares NaN (exp NaN en Económico, mismo nombre_norm en Comor o TS) se
+          marcan con nan_exp=True y exp_shared=pd.NA. Solo Eco contribuye NaN porque
+          Comor y TS no tienen expedientes NaN tras el preprocesamiento.
         - Los record_id son índices globales asignados aquí; dataset_v2.py los unifica
           al construir el parquet final.
         - entity_id NO se asigna aquí — depende de classify_pairs() y assign_entity_ids().
@@ -104,16 +101,22 @@ def build_pairs_df(
     pairs_exp["exp_int_a"] = pairs_exp["exp_int"].astype("Int64")
     pairs_exp["exp_int_b"] = pairs_exp["exp_int"].astype("Int64")
 
-    # --- Pares NaN-TS: expediente NaN en Económico, mismo nombre_norm en Trabajo Social ---
+    # --- Pares NaN: expediente NaN en Económico, mismo nombre_norm en otro source ---
+    # Solo Eco contribuye registros NaN (Comor y TS no tienen NaN en expediente
+    # tras el preprocesamiento). Generamos cruces simétricos contra ambos targets.
     econo_nan = aux[(aux["source"] == "Económico") & (aux["exp_int"].isna())].copy()
-    ts_all    = aux[aux["source"] == "Trabajo Social"].copy()
+    econo_nan = econo_nan[econo_nan["nombre_norm"] != ""]  # excluir nombres vacíos
 
-    # Deduplicar por nombre_norm: si dos registros TS tienen el mismo nombre normalizado,
-    # se toma el primero como representante — evita duplicar el par NaN-TS.
-    ts_dedup_for_nan = ts_all.drop_duplicates(subset=["nombre_norm"]).copy()
+    nan_frames = []
+    for target_source in ("Comorbilidad", "Trabajo Social"):
+        target_all = aux[aux["source"] == target_source].copy()
+        # Deduplicar por nombre_norm: si dos registros target tienen el mismo nombre
+        # normalizado, se toma el primero como representante — evita duplicar el par.
+        target_dedup = target_all.drop_duplicates(subset=["nombre_norm"]).copy()
+        merged = econo_nan.merge(target_dedup, on="nombre_norm", suffixes=("_a", "_b"))
+        nan_frames.append(merged)
 
-    nan_merged = econo_nan.merge(ts_dedup_for_nan, on="nombre_norm", suffixes=("_a", "_b"))
-    nan_merged = nan_merged[nan_merged["nombre_norm"] != ""]  # excluir nombres vacíos
+    nan_merged = pd.concat(nan_frames, ignore_index=True)
     nan_merged["nan_exp"] = True
     nan_merged["exp_shared"] = pd.NA
     # nombre_norm es la clave del merge — pandas no la sufija, hay que duplicarla manualmente
@@ -154,39 +157,32 @@ def build_pairs_df(
 
 def classify_pairs(
     pairs_df: pd.DataFrame,
-    umbral_jw: float = 0.92,
+    umbral_jw: float = 0.88,
     umbral_lev: float = 0.85,
-    umbral_sem: float = 0.80,
-    encoder=None,
-    overrides_path: Optional[Path] = None,
 ) -> pd.DataFrame:
     """Agrega columna 'criterio' con la etiqueta de clasificación de cada par.
 
-    Aplica una cascada de cuatro criterios sobre los pares candidatos:
+    Aplica una cascada de tres criterios sobre los pares candidatos:
         1. llave_exacta    — nombre_norm_a == nombre_norm_b y nan_exp=False
         2. metrica_clasica — JW(a,b) >= umbral_jw  OR  Lev_ratio(a,b) >= umbral_lev
-        3. metrica_semantica — coseno(BETO(a), BETO(b)) >= umbral_sem
-        4. no_confirmado   — ningún criterio resuelve el par, o nan_exp=True
+        3. no_confirmado   — ningún criterio resuelve el par, o nan_exp=True
 
     Los pares nan_exp=True van directamente a no_confirmado (no se aplica cascada).
+    Las decisiones manuales (match/no_match) NO se aplican aquí; se incorporan en
+    _step_finalize leyendo el xlsx editado.
 
-    IMPORTANTE: Los umbrales por defecto son tentativos. Deben calibrarse empíricamente
-    sobre los 9,855 pares llave_exacta antes de usar en producción (ver Paso 6.5 del plan).
+    jw_score y lev_score se calculan para los 11,486 pares independientemente del
+    criterio asignado — útil para auditoría del umbral y para poblar el array
+    `scores` del JSON consolidado.
 
     Args:
-        pairs_df:      DataFrame producido por build_pairs_df()
-        umbral_jw:     Umbral mínimo de Jaro-Winkler (0–1). Default tentativo: 0.92
-        umbral_lev:    Umbral mínimo de ratio Levenshtein (0–1). Default tentativo: 0.85
-        umbral_sem:    Umbral mínimo de similitud coseno semántica (0–1). Default tentativo: 0.80
-        encoder:       Instancia de BiEncoder (build_biencoder()) para metrica_semantica.
-                       Si es None, se omite la capa semántica y esos pares van a no_confirmado.
-        overrides_path: Ruta a overrides.csv con columnas [record_id_a, record_id_b, criterio].
-                       Si se pasa, sobreescribe la clasificación automática para esos pares.
-                       Permite incorporar decisiones manuales del notebook de revisión.
+        pairs_df:   DataFrame producido por build_pairs_df()
+        umbral_jw:  Umbral mínimo de Jaro-Winkler (0–1). Calibrado empíricamente: 0.88
+        umbral_lev: Umbral mínimo de ratio Levenshtein (0–1). Calibrado empíricamente: 0.85
 
     Returns:
         pairs_df con columnas adicionales:
-            jw_score (float), lev_score (float), sem_score (float o NaN), criterio (str)
+            jw_score (float), lev_score (float), criterio (str)
     """
     result = pairs_df.copy()
 
@@ -199,7 +195,6 @@ def classify_pairs(
         lambda r: Levenshtein.normalized_similarity(r["nombre_norm_a"], r["nombre_norm_b"]),
         axis=1,
     )
-    result["sem_score"] = float("nan")
 
     # --- Cascada de clasificación ---
     criterio = pd.Series([""] * len(result), index=result.index)
@@ -217,40 +212,9 @@ def classify_pairs(
     )
     criterio[mask_clasica] = "metrica_clasica"
 
-    # Capa 3: metrica_semantica (solo si hay encoder disponible)
-    pending = criterio == ""
-    no_nan = ~result["nan_exp"]
-    sem_candidates = result[pending & no_nan].index
-
-    if encoder is not None and len(sem_candidates) > 0:
-        from record_linkage.models.biencoder import encode_texts
-        nombres_a = result.loc[sem_candidates, "nombre_norm_a"].tolist()
-        nombres_b = result.loc[sem_candidates, "nombre_norm_b"].tolist()
-        emb_a = encode_texts(encoder, nombres_a)
-        emb_b = encode_texts(encoder, nombres_b)
-        import torch
-        cos = torch.nn.functional.cosine_similarity(
-            torch.tensor(emb_a), torch.tensor(emb_b), dim=1
-        ).numpy()
-        result.loc[sem_candidates, "sem_score"] = cos
-        mask_sem = pd.Series(False, index=result.index)
-        mask_sem[sem_candidates] = cos >= umbral_sem
-        criterio[mask_sem] = "metrica_semantica"
-
-    # Capa 4: no_confirmado — todo lo que queda sin clasificar
+    # Capa 3: no_confirmado — todo lo que queda sin clasificar
     criterio[criterio == ""] = "no_confirmado"
 
     result["criterio"] = criterio
-
-    # --- Overrides manuales ---
-    if overrides_path is not None:
-        overrides_path = Path(overrides_path)
-        if overrides_path.exists():
-            ov = pd.read_csv(overrides_path)
-            ov_index = result.set_index(["record_id_a", "record_id_b"]).index
-            for _, ov_row in ov.iterrows():
-                key = (ov_row["record_id_a"], ov_row["record_id_b"])
-                matches = (result["record_id_a"] == key[0]) & (result["record_id_b"] == key[1])
-                result.loc[matches, "criterio"] = ov_row["criterio"]
 
     return result
