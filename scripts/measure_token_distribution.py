@@ -10,7 +10,7 @@ Uso:
     python scripts/measure_token_distribution.py --model BETO
     python scripts/measure_token_distribution.py --model BETO --output-csv tokens.csv
     python scripts/measure_token_distribution.py --model RoBERTa-biomedical \\
-        --dataset ~/Data/INER/processed/tesis/output/tok_skipnull/dataset.parquet
+        --dataset ~/Data/INER/processed/default/output/tok_skipnull/dataset.parquet
 """
 
 import argparse
@@ -23,7 +23,7 @@ from transformers import AutoTokenizer
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import MODELS_DIR, PROCESSED_DIR
+from record_linkage.config import CONSULTORIA_OUTPUT_DIR, MODELS_DIR
 
 
 VARIANTS = ["tok_keepnull", "tok_skipnull", "notok_keepnull", "notok_skipnull"]
@@ -83,7 +83,7 @@ def main():
                         help="Modelo a usar como tokenizador (default: BETO)")
     parser.add_argument("--dataset", default=None,
                         help="Si se pasa, mide solo este parquet (col 'text'). "
-                             "Si no, mide las 4 variantes en tesis/output/*/dataset.parquet")
+                             "Si no, mide las 4 variantes en default/output/*/dataset.parquet")
     parser.add_argument("--output-csv", default=None,
                         help="Guarda tabla en CSV para reporte de tesis")
     args = parser.parse_args()
@@ -96,9 +96,9 @@ def main():
     if args.dataset:
         rows.append(stats_for_variant(tokenizer, Path(args.dataset), Path(args.dataset).parent.name))
     else:
-        tesis_output = PROCESSED_DIR / "tesis" / "output"
+        consultoria_output = CONSULTORIA_OUTPUT_DIR
         for v in VARIANTS:
-            parquet_path = tesis_output / v / "dataset.parquet"
+            parquet_path = consultoria_output / v / "dataset.parquet"
             if not parquet_path.exists():
                 print(f"  AVISO: no se encontró {parquet_path}, omitido")
                 continue

@@ -10,8 +10,8 @@ Uso:
     python scripts/evaluate_zeroshot.py --model BETO --model RoBERTa-biomedical
     python scripts/evaluate_zeroshot.py --all
 
-Dataset por defecto: ~/Data/INER/processed/tesis0_sin_tokens/dataset.parquet
-Salida:              ~/Data/INER/outputs/evaluation/zeroshot_results_<perfil>.json
+Dataset por defecto: ~/Data/INER/processed/default/output/notok_skipnull/dataset.parquet
+Salida:              ~/Data/INER/outputs/evaluation/zeroshot_results_<variante>.json
 """
 
 import argparse
@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import EVALUATION_DIR, PROCESSED_DIR
+from record_linkage.config import CONSULTORIA_OUTPUT_DIR, EVALUATION_DIR
 from record_linkage.evaluation.biencoder_eval import (
     K_VALUES_DEFAULT,
     evaluate_zeroshot_model,
@@ -46,16 +46,16 @@ def main():
     group.add_argument("--all", action="store_true",
                        help="Evalúa todos los modelos conocidos")
     parser.add_argument("--dataset", type=str, default=None,
-                        help="Ruta al dataset.parquet (default: tesis0_sin_tokens/dataset.parquet)")
+                        help="Ruta al dataset.parquet (default: notok_skipnull/dataset.parquet)")
     args = parser.parse_args()
 
     dataset_path = (
         Path(args.dataset) if args.dataset
-        else PROCESSED_DIR / "tesis0_sin_tokens" / "dataset.parquet"
+        else CONSULTORIA_OUTPUT_DIR / "notok_skipnull" / "dataset.parquet"
     )
     if not dataset_path.exists():
         print(f"ERROR: dataset no encontrado en {dataset_path}")
-        print("Genera primero: python scripts/run_dataset.py --perfil tesis0 --no-special-tokens")
+        print("  El dataset lo produce la consultoría (repo consultoria-iner).")
         return 1
 
     models_to_eval = KNOWN_MODELS if args.all else args.models

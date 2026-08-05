@@ -23,7 +23,7 @@ Salida: 3 parquets (train, val, test) en el directorio del dataset, conteniendo 
 Uso:
     python scripts/mine_hard_pairs.py \\
         --checkpoint beto_mnrl_hpc_v2_<variante> \\
-        --dataset    ~/Data/INER/processed/tesis/output/<variante>/dataset_split.parquet \\
+        --dataset    ~/Data/INER/tesis/splits/<variante>_split.parquet \\
         --top-k      20
 
     # Default: --top-k 20, escribe pairs_{train,val,test}.parquet en el dir del dataset.

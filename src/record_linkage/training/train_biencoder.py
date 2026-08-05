@@ -4,7 +4,7 @@ Etapa 1 — Bi-Encoder con Multiple Negatives Ranking Loss (MNRL).
 Uso (smoke test local, 1 época):
     python scripts/run_train_biencoder.py \
         --model BETO \
-        --dataset ~/Data/INER/processed/tesis1/dataset_split.parquet \
+        --dataset ~/Data/INER/tesis/splits/tok_skipnull_split.parquet \
         --output ~/Data/INER/models/checkpoints/beto_mnrl_run03 \
         --epochs 1 --batch-size 8 --n-aug 0 --max-seq-length 384
 
@@ -29,7 +29,7 @@ from torch.utils.data import DataLoader, Dataset
 import warnings
 warnings.filterwarnings("ignore", message="Detected call of.*lr_scheduler")
 
-from record_linkage.config import MODELS_DIR, PROCESSED_DIR, TRAINING_DIR
+from record_linkage.config import MODELS_DIR, SPLITS_DIR, TRAINING_DIR
 from record_linkage.data.augmentation import AugmentationConfig, augment
 from record_linkage.models.biencoder import build_biencoder
 from record_linkage.training.mnrl import dump_mnrl_batch
@@ -283,7 +283,7 @@ def main():
     print(f"\nDispositivo: {device}")
 
     model_path   = MODELS_DIR / "pretrained" / args.model
-    parquet_path = Path(args.dataset) if args.dataset else PROCESSED_DIR / "tesis1" / "dataset_split.parquet"
+    parquet_path = Path(args.dataset) if args.dataset else SPLITS_DIR / "tok_skipnull_split.parquet"
     output_dir   = Path(args.output)  if args.output  else MODELS_DIR / "checkpoints" / f"{args.model}_mnrl"
     output_dir.mkdir(parents=True, exist_ok=True)
 

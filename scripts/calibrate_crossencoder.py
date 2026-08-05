@@ -8,9 +8,9 @@ Procedimiento POST-HOC sobre el CE ya entrenado (NO re-entrena):
 Uso:
     python scripts/calibrate_crossencoder.py \\
         --checkpoint ~/Data/INER/models/checkpoints/beto_bce_hpc_v2_tok_skipnull/best \\
-        --dataset    ~/Data/INER/processed/tesis/output/tok_skipnull/dataset.parquet \\
-        --val-pairs  ~/Data/INER/processed/tesis/output/tok_skipnull/pairs_val.parquet \\
-        --test-pairs ~/Data/INER/processed/tesis/output/tok_skipnull/pairs_test.parquet
+        --dataset    ~/Data/INER/processed/default/output/tok_skipnull/dataset.parquet \\
+        --val-pairs  ~/Data/INER/tesis/splits/pairs_val.parquet \\
+        --test-pairs ~/Data/INER/tesis/splits/pairs_test.parquet
 """
 
 import argparse

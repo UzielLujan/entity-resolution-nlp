@@ -17,7 +17,7 @@ Uso:
     # 3D por default sobre split=test del ganador del 2 x 2
     python scripts/visualize_embeddings.py \\
         --checkpoint beto_mnrl_hpc_v2_tok_skipnull \\
-        --dataset ~/Data/INER/processed/tesis/output/tok_skipnull/dataset_split.parquet
+        --dataset ~/Data/INER/tesis/splits/tok_skipnull_split.parquet
 
     # 2D
     python scripts/visualize_embeddings.py --checkpoint <run> --dataset <parquet> --dims 2
@@ -42,13 +42,29 @@ import plotly.express as px
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import FIGURES_DIR, perfil_paths
+from record_linkage.config import FIGURES_DIR
 from record_linkage.evaluation.biencoder_eval import (
     load_dataset_split,
     resolve_checkpoint_path,
 )
 from record_linkage.models.biencoder import build_biencoder, encode_texts
-from record_linkage.utils.pairs import _COL_MAP
+
+
+def _extract_field(text: str, col: str) -> str:
+    """Extrae el valor de `[COL] <col> [VAL] <valor>` del texto serializado.
+
+    El valor termina en ` [COL]` (siguiente campo), en ` [BLK_` (siguiente bloque)
+    o al final del string. Devuelve '?' si el campo no está.
+    """
+    marker = f"[COL] {col} [VAL] "
+    start = text.find(marker)
+    if start == -1:
+        return "?"
+    start += len(marker)
+    end_candidates = [text.find(" [COL] ", start), text.find(" [BLK_", start)]
+    end_candidates = [e for e in end_candidates if e != -1]
+    end = min(end_candidates) if end_candidates else len(text)
+    return text[start:end].strip() or "?"
 
 
 # Paleta del doc demo-propuesta.md
@@ -66,48 +82,24 @@ def _hex_to_rgba(hex_color: str, alpha: float) -> str:
     return f"rgba({r},{g},{b},{alpha})"
 
 
-def _fmt_value(v) -> str:
-    """Formatea valor para display: '?' si NaN, int si numérico, str otherwise."""
-    if v is None or pd.isna(v):
-        return "?"
-    if isinstance(v, float) and v.is_integer():
-        return str(int(v))
-    return str(v).strip()
+def build_identity_map(dataset_df: pd.DataFrame) -> dict:
+    """Construye un dict {record_id: 'NOMBRE | exp=NNN'} desde el dataset.
 
-
-def build_identity_map(clean_dir: Path) -> dict:
-    """Construye un dict {record_id: 'NOMBRE | exp=NNN'} leyendo las 3 CSVs limpias.
-
-    Los record_ids se asignan secuencialmente en orden [econo, comorbilidad, trabajo_social]
-    durante _step_classify de dataset_v2 — esa convención es la que aquí replicamos.
+    Toma nombre y expediente de la serialización `text` que produce la
+    consultoría (`[COL] NOMBRE_DEL_PACIENTE [VAL] ...`), sin depender de
+    los CSVs limpios.
 
     Args:
-        clean_dir: directorio con `econo_clean.csv`, `comorbilidad_clean.csv`,
-                   `trabajo_social_clean.csv`.
+        dataset_df: DataFrame con columnas `record_id` y `text`.
 
     Returns:
         dict record_id → "NOMBRE | exp=NNN" para hover de Plotly.
     """
-    csv_order = [
-        ("econo",          "econo_clean.csv"),
-        ("comorbilidad",   "comorbilidad_clean.csv"),
-        ("trabajo_social", "trabajo_social_clean.csv"),
-    ]
-
     identity_map = {}
-    record_id = 0
-    for csv_type, fname in csv_order:
-        path = clean_dir / fname
-        if not path.exists():
-            raise FileNotFoundError(f"CSV limpio no encontrado: {path}")
-        df = pd.read_csv(path)
-        exp_col, nombre_col = _COL_MAP[csv_type]
-        for _, row in df.iterrows():
-            nombre = _fmt_value(row.get(nombre_col))
-            exp    = _fmt_value(row.get(exp_col))
-            identity_map[record_id] = f"{nombre} | exp={exp}"
-            record_id += 1
-
+    for record_id, text in zip(dataset_df["record_id"], dataset_df["text"]):
+        nombre = _extract_field(text, "NOMBRE_DEL_PACIENTE")
+        exp    = _extract_field(text, "EXP")
+        identity_map[record_id] = f"{nombre} | exp={exp}"
     return identity_map
 
 
@@ -142,9 +134,6 @@ def main():
                         help="Opacidad de los singletons (0.0–1.0, default: 0.25). Sube para verlos más")
     parser.add_argument("--output-html", default=None,
                         help="Ruta del HTML (default: outputs/figures/embeddings_<checkpoint>_<split>_<dims>D.html)")
-    parser.add_argument("--clean-dir", default=None,
-                        help="Directorio con los CSVs limpios para lookup de nombre/expediente. "
-                             "Default: derivado del perfil 'tesis' (tesis/clean/)")
     highlight_group = parser.add_mutually_exclusive_group()
     highlight_group.add_argument("--highlight-entity", type=int, default=None,
                                   help="entity_id específico a resaltar — añade annotations permanentes "
@@ -214,10 +203,8 @@ def main():
     viz["entity_id"]   = df["entity_id"].values
     viz["record_id"]   = df["record_id"].values
     viz["is_linkable"] = df["is_linkable"].values
-    # Identidad compacta para hover: "NOMBRE | exp=NNN" — lookup desde CSVs limpios
-    clean_dir = Path(args.clean_dir) if args.clean_dir else perfil_paths("tesis")["clean"]
-    print(f"  Lookup de identidad desde: {clean_dir}")
-    identity_map = build_identity_map(clean_dir)
+    # Identidad compacta para hover: "NOMBRE | exp=NNN" — parseada del text serializado
+    identity_map = build_identity_map(df)
     viz["identidad"]   = df["record_id"].map(identity_map).values
 
     # === Selección de cluster a destacar (annotations permanentes)

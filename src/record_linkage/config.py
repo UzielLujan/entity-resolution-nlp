@@ -1,12 +1,10 @@
 # src/record_linkage/config.py
 #
-# Punto central de configuración del proyecto.
-# Todas las rutas del sistema se definen aquí
+# Punto central de configuración del proyecto de tesis.
+# Todas las rutas del sistema se definen aquí.
 
 # Como importar:
-#   from record_linkage.config import RAW_DIR, NOTEBOOKS_DIR
-
-# Ejemplo: df = pd.read_csv(RAW_DIR / "INER_COVID19_CostoPacientes_Econo.csv")
+#   from record_linkage.config import DATASET_PARQUET, SPLITS_DIR
 
 from pathlib import Path
 from dotenv import load_dotenv
@@ -33,9 +31,7 @@ NOTEBOOKS_DIR: Path = REPO_ROOT / "notebooks"
 SCRIPTS_DIR:   Path = REPO_ROOT / "scripts"
 
 # ── Subdirectorios de datos ───────────────────────────────────────────────────
-RAW_DIR:          Path = DATA_ROOT / "raw"
 PROCESSED_DIR:    Path = DATA_ROOT / "processed"
-GROUND_TRUTH_DIR: Path = DATA_ROOT / "ground_truth"
 MODELS_DIR:       Path = DATA_ROOT / "models"
 EMBEDDINGS_DIR:   Path = DATA_ROOT / "embeddings"
 
@@ -45,68 +41,46 @@ FIGURES_DIR:      Path = OUTPUTS_DIR / "figures"
 TRAINING_DIR:     Path = OUTPUTS_DIR / "training"
 EVALUATION_DIR:   Path = OUTPUTS_DIR / "evaluation"
 
-# ── Archivos de datos fuente ─────────
-RAW_FILES = {
-    "econo":         RAW_DIR / "INER_COVID19_CostoPacientes_Econo.csv",
-    "comorbilidad":  RAW_DIR / "INER_COVID19_Pacientes_DiagnosticoComorbilidad.csv",
-    "trabajo_social": RAW_DIR / "INER_COVID19_TrabajoSocial.csv",
-}
-# ── Conjunto de datos etiquetado (por ahora solo existen los pares pendientes de confirmar) ─────────
-GROUND_TRUTH_FILES = {
-    "comorbilidad_ts":   GROUND_TRUTH_DIR / "pares_residuales_comorbilidad_trabajo_social.csv",
-    "econo_comorbilidad": GROUND_TRUTH_DIR / "pares_residuales_económico_comorbilidad.csv",
-    "econo_ts":          GROUND_TRUTH_DIR / "pares_residuales_económico_trabajo_social.csv",
-}
+# ── Contrato consultoría → tesis ───────────────────────────────────────────────
+# La consultoría (repo consultoria-iner) produce:
+#   <DATA_ROOT>/processed/default/output/<variant>/dataset.parquet
+# La tesis consume esos artefactos directamente: no preprocesa, no serializa,
+# no construye ground truth. Las variantes posibles:
+#   tok_skipnull, tok_keepnull, notok_skipnull, notok_keepnull
+CONSULTORIA_OUTPUT_DIR: Path = PROCESSED_DIR / "default" / "output"
+DEFAULT_VARIANT: str = "tok_skipnull"
+DATASET_PARQUET: Path = CONSULTORIA_OUTPUT_DIR / DEFAULT_VARIANT / "dataset.parquet"
+ENTITY_IDS_PARQUET: Path = CONSULTORIA_OUTPUT_DIR / "entity_ids.parquet"
 
-# ── Resolución de subdirectorios por perfil ───────────────────────────────────
-# El perfil `tesis` (workspace canónico post-Ruta A) usa la estructura
-# clean/ interim/ output/. Los perfiles legacy (tesis0, tesis1, tesis2, iner)
-# mantienen estructura flat. Esta función centraliza el dispatch.
-def perfil_paths(perfil: str) -> dict:
-    """Devuelve los 3 subdirectorios canónicos de un perfil.
-
-    Para `tesis`: clean/ (CSVs limpios), interim/ (xlsx + parquets de auditoría),
-    output/ (variantes de dataset.parquet + splits).
-
-    Para perfiles legacy: los 3 apuntan al mismo directorio plano.
-    """
-    base = PROCESSED_DIR / perfil
-    if perfil == "tesis":
-        return {
-            "clean":   base / "clean",
-            "interim": base / "interim",
-            "output":  base / "output",
-        }
-    return {"clean": base, "interim": base, "output": base}
+# ── Artefactos derivados por la tesis ──────────────────────────────────────────
+# Los splits son artefactos de la tesis, no de consultoría: viven en su propio
+# directorio y NO contaminan el output de consultoría.
+SPLITS_DIR: Path = DATA_ROOT / "tesis" / "splits"
 
 
 # ── Validación opcional (útil al arrancar un script o notebook) ───────────────
 def check_paths() -> None:
     """Imprime el estado de todas las rutas críticas del proyecto."""
     paths = {
-        "REPO_ROOT":       REPO_ROOT,
-        "DOCS_DIR":        DOCS_DIR,
-        "NOTEBOOKS_DIR":   NOTEBOOKS_DIR,
-        "DATA_ROOT":       DATA_ROOT,
-        "RAW_DIR":         RAW_DIR,
-        "PROCESSED_DIR":   PROCESSED_DIR,
-        "GROUND_TRUTH_DIR": GROUND_TRUTH_DIR,
-        "MODELS_DIR":      MODELS_DIR,
-        "EMBEDDINGS_DIR":  EMBEDDINGS_DIR,
-        "OUTPUTS_DIR":    OUTPUTS_DIR,
-        "FIGURES_DIR":    FIGURES_DIR,
-        "TRAINING_DIR":   TRAINING_DIR,
-        "EVALUATION_DIR": EVALUATION_DIR,
+        "REPO_ROOT":            REPO_ROOT,
+        "DOCS_DIR":             DOCS_DIR,
+        "NOTEBOOKS_DIR":        NOTEBOOKS_DIR,
+        "DATA_ROOT":            DATA_ROOT,
+        "PROCESSED_DIR":        PROCESSED_DIR,
+        "CONSULTORIA_OUTPUT_DIR": CONSULTORIA_OUTPUT_DIR,
+        "DATASET_PARQUET":      DATASET_PARQUET,
+        "SPLITS_DIR":           SPLITS_DIR,
+        "MODELS_DIR":           MODELS_DIR,
+        "EMBEDDINGS_DIR":       EMBEDDINGS_DIR,
+        "OUTPUTS_DIR":          OUTPUTS_DIR,
+        "FIGURES_DIR":          FIGURES_DIR,
+        "TRAINING_DIR":         TRAINING_DIR,
+        "EVALUATION_DIR":       EVALUATION_DIR,
     }
     print("── Rutas del proyecto ──────────────────────")
     for name, path in paths.items():
         status = "EXISTE" if path.exists() else "NO EXISTE"
         print(f"  {status}  {name}: {path}")
-
-    print("\n── Archivos fuente ─────────────────────────")
-    for key, path in RAW_FILES.items():
-        status = "EXISTE" if path.exists() else "NO EXISTE"
-        print(f"  {status}  {key}: {path.name}")
 
 
 if __name__ == "__main__":

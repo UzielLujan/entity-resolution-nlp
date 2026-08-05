@@ -2,13 +2,14 @@
 Script de partición train/val/test del dataset a nivel de entidad.
 
 Uso:
-    python scripts/run_splitting.py --perfil tesis --dataset dataset_v2_tokens_null.parquet
-    python scripts/run_splitting.py --perfil tesis1 --dataset dataset_v2.parquet
-    python scripts/run_splitting.py --perfil tesis1 --train 0.70 --val 0.15 --seed 42
+    python scripts/run_splitting.py
+    python scripts/run_splitting.py --variant notok_skipnull
+    python scripts/run_splitting.py --train 0.70 --val 0.15 --seed 42
 
-`--dataset` acepta nombre relativo al `output/` del perfil (para `tesis`) o al
-directorio plano (para perfiles legacy), o una ruta absoluta. La salida se deriva
-del input: `<stem>_split.parquet` en el mismo directorio.
+El dataset de entrada es el que produce la consultoría:
+    <DATA_ROOT>/processed/default/output/<variant>/dataset.parquet
+La salida es un artefacto de la tesis:
+    <DATA_ROOT>/tesis/splits/<variant>_split.parquet
 """
 
 import argparse
@@ -17,37 +18,40 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import perfil_paths
+from record_linkage.config import CONSULTORIA_OUTPUT_DIR, DEFAULT_VARIANT, SPLITS_DIR
 from record_linkage.data.splitting import split_dataset
 
 
 def main():
     parser = argparse.ArgumentParser(description="Partición train/val/test del dataset")
     parser.add_argument(
-        "--perfil",
-        choices=["tesis", "tesis0", "tesis0_sin_tokens", "tesis1", "tesis2", "iner"],
-        default="tesis1",
+        "--variant",
+        choices=["tok_skipnull", "tok_keepnull", "notok_skipnull", "notok_keepnull"],
+        default=DEFAULT_VARIANT,
+        help=f"Variante de consultoría a particionar (default: {DEFAULT_VARIANT})",
     )
     parser.add_argument(
-        "--dataset", type=str, default="dataset.parquet",
-        help="Nombre del parquet relativo al output/ del perfil o ruta absoluta (default: dataset.parquet)",
+        "--dataset", type=str, default=None,
+        help="Ruta absoluta al dataset.parquet (default: <CONSULTORIA_OUTPUT_DIR>/<variant>/dataset.parquet)",
     )
     parser.add_argument("--train", type=float, default=0.70, dest="train_ratio")
     parser.add_argument("--val",   type=float, default=0.15, dest="val_ratio")
     parser.add_argument("--seed",  type=int,   default=42)
     args = parser.parse_args()
 
-    paths = perfil_paths(args.perfil)
-    dataset_arg = Path(args.dataset)
-    parquet_path = dataset_arg if dataset_arg.is_absolute() else paths["output"] / dataset_arg
-    output_path  = parquet_path.with_name(parquet_path.stem + "_split.parquet")
+    parquet_path = (
+        Path(args.dataset).expanduser()
+        if args.dataset
+        else CONSULTORIA_OUTPUT_DIR / args.variant / "dataset.parquet"
+    )
+    output_path = SPLITS_DIR / f"{args.variant}_split.parquet"
 
     if not parquet_path.exists():
         print(f"Error: dataset no encontrado en {parquet_path}")
-        print(f"  Ejecuta primero: python scripts/run_dataset.py --perfil {args.perfil}")
+        print("  El dataset lo produce la consultoría (repo consultoria-iner).")
         return 1
 
-    print(f"\nParticionando dataset (Perfil {args.perfil})...")
+    print(f"\nParticionando dataset (variante {args.variant})...")
     print(f"  Entrada: {parquet_path}")
     print(f"  Salida:  {output_path}")
 

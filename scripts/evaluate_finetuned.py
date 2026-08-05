@@ -22,7 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import EVALUATION_DIR, PROCESSED_DIR
+from record_linkage.config import EVALUATION_DIR, SPLITS_DIR
 from record_linkage.evaluation.biencoder_eval import (
     K_VALUES_DEFAULT,
     evaluate_finetuned_checkpoint,
@@ -65,12 +65,12 @@ def main():
     parser.add_argument("--split", choices=["train", "val", "test"], default="test",
                         help="Split a evaluar (default: test)")
     parser.add_argument("--dataset", type=str, default=None,
-                        help="Ruta al dataset_split.parquet (default: tesis1/dataset_split.parquet)")
+                        help="Ruta al dataset_split.parquet (default: tesis/splits/tok_skipnull_split.parquet)")
     args = parser.parse_args()
 
     dataset_path = (
         Path(args.dataset) if args.dataset
-        else PROCESSED_DIR / "tesis1" / "dataset_split.parquet"
+        else SPLITS_DIR / "tok_skipnull_split.parquet"
     )
     if not dataset_path.exists():
         print(f"ERROR: dataset no encontrado en {dataset_path}")
