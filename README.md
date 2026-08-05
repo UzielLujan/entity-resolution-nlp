@@ -239,8 +239,8 @@ Los tokens `[BLK_ID]`, `[BLK_CLIN]`, `[BLK_GEO]`, `[BLK_ADMIN]`, `[BLK_SOCIO]`, 
 | `docs/Contexto_Consultoria_INER.md` | Objetivos y entregables de la consultoría INER |
 | `docs/entorno_y_dependencias.md` | Entorno Python: micromamba, uv, pyproject.toml |
 | `docs/comandos_proyecto.md` | Comandos canónicos del pipeline end-to-end |
-| `docs/plan_ruta_a_etiquetado.md` | Ruta A — rediseño del etiquetado y dataset v2 |
-| `docs/plan_ruta_b.md` | Ruta B — pipeline BE + Cross-Encoder, experimento 2×2 |
+| `docs/Anexos/historial_generacion_dataset_etiquetado.md` | Historial de generación y revisión del dataset etiquetado |
+| `docs/Anexos/historial_desarrollo_pipeline_neuronal.md` | Historial del pipeline BE + Cross-Encoder y experimento 2×2 |
 | `docs/propuesta_entregable_JSON.md` | Schema entity-centric del JSON consolidado INER |
 | `docs/Anexos/metricas_evaluacion.md` | Métricas (Recall@K, PR-AUC, Δsep) — teoría y operacionalización |
 | `docs/Anexos/propuesta_incertidumbre.md` | Vía A/B de incertidumbre + auditoría de etiquetas |

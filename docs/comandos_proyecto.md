@@ -1,507 +1,174 @@
-# Comandos del Pipeline de Datos
+# Comandos del pipeline neuronal
 
-Flujo completo desde los CSVs crudos hasta el consumo en entrenamiento.
-Todas las rutas de salida son relativas a `~/Data/INER/`.
+Guía operativa de `entity-resolution-nlp`. Ejecute los comandos desde la raíz del proyecto y use `--help` para consultar opciones adicionales.
 
----
+## 1. Alcance del repositorio
+Este repositorio consume un `dataset.parquet` preparado y ejecuta exclusivamente partición, entrenamiento, evaluación y exportación de artefactos neuronales. No procesa datos crudos ni construye el ground truth.
 
-## Comportamiento de rutas por script
+```text
+dataset.parquet preparado
+        ↓
+run_splitting.py
+        ↓
+run_train_biencoder.py
+        ↓
+evaluate_finetuned.py
+        ↓
+mine_hard_pairs.py
+        ↓
+train_crossencoder.py
+        ↓
+evaluate_crossencoder.py
+        ↓
+calibrate_crossencoder.py
+```
 
-| Script | Entrada | Salida | Rutas explícitas necesarias |
-|---|---|---|---|
-| `run_preprocessing.py` | `RAW_FILES` en `config.py` (fija) | `processed/<perfil>/` | Ninguna — deriva todo de `--perfil` |
-| `run_dataset.py` | `processed/<perfil>/` | `processed/<perfil>[_sin_tokens]/` | Ninguna — deriva todo de `--perfil` y flags |
-| `run_dataset_v2.py` | `processed/<perfil>/*_clean.csv` | `processed/<perfil>/{dataset_v2.parquet, pairs_for_review.xlsx, interim/}` | Ninguna — deriva todo de `--perfil` |
-| `run_splitting.py` | `processed/<perfil>/dataset.parquet` | mismo directorio, `<stem>_split.parquet` | Opcional: `--dataset` para usar `dataset_v2.parquet` u otro |
-| `evaluate_zeroshot.py` | `processed/tesis0_sin_tokens/dataset.parquet` | `outputs/evaluation/` | Opcional: `--dataset` si se usa otro parquet |
-| `run_train_biencoder.py` | `processed/tesis1/dataset_split.parquet` | `models/checkpoints/<model>_mnrl/` | **Recomendado** pasar `--output` para nombrar el run; `--dataset` si el perfil no es `tesis1` |
-| `evaluate_finetuned.py` | `processed/tesis1/dataset_split.parquet` | `outputs/evaluation/finetuned/` | Opcional: `--dataset`; usar `--checkpoint` o `--all` |
-| `plot_training_curves.py` | `models/checkpoints/<run>/training_history.json` | `outputs/figures/` | Ninguna — deriva todo de `--checkpoint` |
-| `build_consolidated_json.py` | `tesis/{output/<variant>/dataset.parquet, interim/records_interim.parquet}` + `RAW_FILES` | `iner/consolidated_entities_<v>.json` | Opcional: `--source-perfil`, `--out-perfil`, `--variant`, `--schema-version` |
-| `build_data_dictionary.py` | `docs/consolidated_entities.schema.json` + `comparison_methods.REGISTRY` | `iner/{Diccionario_Final_INER.csv, metodos_comparacion.json, consolidated_entities.schema.json}` | Opcional: `--out-perfil` |
+Ramas complementarias: `evaluate_zeroshot.py`, `measure_token_distribution.py`, `plot_training_curves.py`, `visualize_embeddings.py`, `export_embeddings.py` y `sanity_check_paraphrase.py`.
 
-> Los únicos scripts donde vale la pena pasar rutas explícitas son `evaluate_zeroshot.py`
-> (cuando se evalúa un dataset no estándar) y `run_train_biencoder.py` (para nombrar el run
-> con sentido, ej. `beto_mnrl_run05_hpc`, y evitar sobreescribir checkpoints anteriores).
-
----
-
-## Etapa 0 — Descarga de modelos preentrenados
-
-Descargar antes de cualquier entrenamiento local o en HPC (los nodos de cómputo no tienen internet).
+## 2. Configuración y rutas
+`INER_DATA_ROOT` define la raíz externa. Si no existe, `config.py` usa `~/Data/INER`. Para reutilizar esta guía en una misma terminal:
 
 ```bash
-# Un modelo específico
-python scripts/download_model.py --model dccuchile/bert-base-spanish-wwm-cased --name BETO
-python scripts/download_model.py --model PlanTL-GOB-ES/roberta-base-biomedical-clinical-es --name RoBERTa-biomedical
-python scripts/download_model.py --model sentence-transformers/paraphrase-multilingual-mpnet-base-v2 --name paraphrase-multilingual
-
-# Todos los modelos conocidos de una vez
-python scripts/download_model.py --all
+export INER_DATA_ROOT="${INER_DATA_ROOT:-$HOME/Data/INER}"
+VARIANT=tok_skipnull
+DATASET="$INER_DATA_ROOT/processed/default/output/$VARIANT/dataset.parquet"
+SPLIT="$INER_DATA_ROOT/tesis/splits/${VARIANT}_split.parquet"
+PAIRS_DIR="$INER_DATA_ROOT/tesis/splits/$VARIANT"
+BE_RUN=beto_mnrl_hpc_v2_tok_skipnull
+CE_RUN=beto_bce_hpc_v2_tok_skipnull
 ```
 
-**Salida:** `models/pretrained/<name>/`
+La raíz también puede persistirse en `.env` como `INER_DATA_ROOT=/ruta/a/INER`.
 
----
-
-## Etapa 1 — Preprocesamiento (`run_preprocessing.py`)
-
-Lee los CSVs crudos del INER y produce CSVs limpios por perfil.
-
-```bash
-# Perfil iner   — limpieza completa para entregables INER (consultoría)
-python scripts/run_preprocessing.py --perfil iner
-
-# Perfil tesis0 — intervención mínima; base para el modo Sin Tokens (evaluación zero-shot)
-python scripts/run_preprocessing.py --perfil tesis0
-
-# Perfil tesis1 — mínima intervención para fine-tuning (perfil principal de tesis)
-python scripts/run_preprocessing.py --perfil tesis1
-
-# Perfil tesis2 — limpieza + renombrado semántico de columnas
-python scripts/run_preprocessing.py --perfil tesis2
-
-# Verificar rutas antes de correr
-python scripts/run_preprocessing.py --check-paths
-```
-
-**Salida:** `processed/<perfil>/{comorbilidad_clean.csv, econo_clean.csv, trabajo_social_clean.csv}`
-
----
-
-## Etapa 2 — Construcción del dataset (`run_dataset.py`)
-
-Serializa los CSVs limpios en registros con tokens especiales, asigna `entity_id` y guarda un `.parquet`.
-
-### Fine-tuning (con tokens especiales `[BLK_*]`)
-
-```bash
-# Perfil estándar para entrenamiento del Bi-Encoder
-python scripts/run_dataset.py --perfil tesis1
-
-# Perfil tesis2 (limpieza más agresiva)
-python scripts/run_dataset.py --perfil tesis2
-
-# Validar rutas antes de construir
-python scripts/run_dataset.py --perfil tesis1 --check-paths
-```
-
-**Salida:** `processed/tesis1/dataset.parquet` (o `tesis2/`)
-
-### Sin tokens especiales — serialización `Clave: Valor`
-
-```bash
-# Dataset completo sin tokens (para evaluación sin fine-tuning)
-python scripts/run_dataset.py --perfil tesis0 --no-special-tokens
-```
-
-**Salida:** `processed/tesis0_sin_tokens/dataset.parquet`
-
-### Solo nombres — campo nombre únicamente
-
-```bash
-# Dataset reducido: text = solo el campo nombre de cada registro
-# Requiere --perfil tesis0 y --no-special-tokens
-python scripts/run_dataset.py --perfil tesis0 --no-special-tokens --solo-nombres
-```
-
-**Salida:** `processed/tesis0_sin_tokens_solo_nombres/dataset.parquet`
-
----
-
-## Etapa 2-bis — Pipeline de etiquetado v2 (`run_dataset_v2.py`)
-
-Alternativa a la Etapa 2 con clasificación explícita de pares cross-CSV y revisión manual.
-Produce el mismo esquema de parquet que v1 (`record_id, source_db, text, entity_id`) — Etapa 3 en adelante consume el output igual (ver nota sobre integración con `run_splitting.py` al final).
-
-### Diferencias clave vs v1 (`run_dataset.py`)
-
-| Aspecto | v1 (`dataset.py`) | v2 (`dataset_v2.py`) |
-|---|---|---|
-| Asignación de `entity_id` | groupby `(exp, nombre_norm)` directo | union-find sobre pares positivos + intra-source grouping |
-| Clasificación de pares | Implícita (todo o nada) | Explícita: `llave_exacta`, `metrica_clasica`, `no_confirmado`, `revision_manual` |
-| Revisión manual | No | Sí — vía `pairs_for_review.xlsx` editable |
-| Trazabilidad | Solo `entity_id` final | `criterio` + `decision` por par, auditable |
-| Capa semántica (BETO) | — | Descartada empíricamente (zero-shot da falsos positivos masivos sobre nombres en español) |
-
-### Flujo de dos pasos
-
-```bash
-# Paso 1: clasificar pares y producir xlsx editable
-python scripts/run_dataset_v2.py --step classify --perfil tesis1
-
-# [Revisión manual: abrir pairs_for_review.xlsx, marcar 'decision' = match / no_match
-#  en los 'no_confirmado' que merezcan veredicto humano. Guardar con Ctrl+S.]
-
-# Paso 2: leer xlsx editado, aplicar transiciones, producir parquet final
-python scripts/run_dataset_v2.py --step finalize --perfil tesis1
-```
-
-### Salidas
-
-```
-~/Data/INER/processed/<perfil>/
-├── pairs_for_review.xlsx        ← superficie de edición humana
-├── dataset_v2.parquet           ← entregable tesis (esquema v1 compatible)
-└── interim/
-    ├── records_interim.parquet  ← internal del pipeline
-    └── pairs_classified.parquet ← auditoría del estado original (sin decisiones)
-```
-
-### Esquema del xlsx editable
-
-Columnas (las primeras dos ocultas, las demás visibles):
-
-| record_id_a (hidden) | record_id_b (hidden) | source_a | source_b | exp | nombre_norm_a | nombre_norm_b | jw | lev | criterio | decision |
-
-Después de `--step finalize` se agregan al final: `entity_id_a`, `entity_id_b` (para auditar el resultado del union-find).
-
-**Validación de la columna `decision`**: dropdown con valores `match` / `no_match` (o vacío). Vacío significa "usa lo que dijo el pipeline".
-
-**Paleta visual** (filas, excepto columna `decision` que queda blanca):
-- 🟢 verde: `decision=match` o `criterio` auto-confirmado con decision vacío
-- 🔴 rojo: `decision=no_match`
-- 🟡 amarillo: `criterio=no_confirmado` con decision vacío (pendiente)
-
-### Reglas de transición en finalize
-
-| Estado pre-finalize | Estado post-finalize |
+| Artefacto | Ruta |
 |---|---|
-| `criterio` auto-confirmado, `decision` vacío | mismo `criterio`, `decision=match` |
-| `criterio=no_confirmado`, `decision=match`/`no_match` | `criterio=revision_manual`, `decision` preservada |
-| `criterio=no_confirmado`, `decision` vacío | sin cambio (pendiente, dispara ⚠ warning) |
-| `criterio` auto-confirmado, `decision=no_match` (override raro) | `decision` preservada como `no_match` |
+| Dataset de entrada | `processed/default/output/<variant>/dataset.parquet` |
+| Split por entidad | `tesis/splits/<variant>_split.parquet` |
+| Modelos | `models/{pretrained,checkpoints}/` |
+| Pares minados | `tesis/splits/<variant>/pairs_{train,val,test}.parquet` |
+| Evaluaciones y figuras | `outputs/` |
+| Embeddings exportados | `embeddings/` |
 
-### Defaults calibrados empíricamente
+## 3. Mapa de scripts activos
+| Script | Función |
+|---|---|
+| `download_model.py` | Descarga y empaqueta modelos locales |
+| `run_splitting.py` | Divide entidades en train, val y test |
+| `evaluate_zeroshot.py` | Evalúa modelos sin fine-tuning |
+| `run_train_biencoder.py` | Entrena el Bi-Encoder |
+| `evaluate_finetuned.py` | Evalúa checkpoints del Bi-Encoder |
+| `measure_token_distribution.py` | Mide longitudes tokenizadas |
+| `plot_training_curves.py` | Grafica historiales de entrenamiento |
+| `visualize_embeddings.py` | Proyecta embeddings con UMAP |
+| `mine_hard_pairs.py` | Genera pares para el Cross-Encoder |
+| `train_crossencoder.py` | Entrena el Cross-Encoder |
+| `evaluate_crossencoder.py` | Busca umbral o evalúa el Cross-Encoder |
+| `calibrate_crossencoder.py` | Calibra y exporta incertidumbre |
+| `export_embeddings.py` | Exporta embeddings por `record_id` |
+| `sanity_check_paraphrase.py` | Verifica el baseline multilingüe |
 
-| Flag | Default | Observación |
-|---|---|---|
-| `--umbral-jw` | 0.88 | Calibrado sobre los 9,855 `llave_exacta` — distingue typos reales de personas distintas |
-| `--umbral-lev` | 0.85 | Mismo proceso |
+Los siete `.sh` de la raíz son wrappers SLURM. Pase rutas explícitas: varios comentarios y defaults internos aún conservan nomenclatura legacy.
 
-### Flags
-
-| Flag | Default | Descripción |
-|---|---|---|
-| `--step` | (requerido) | `classify` o `finalize` |
-| `--perfil` | `tesis1` | Determina la ruta `processed/<perfil>/` |
-| `--econo` / `--comor` / `--ts` | None | Override de rutas a CSVs limpios |
-| `--output` | None | Override del directorio de salida |
-| `--umbral-jw` / `--umbral-lev` | 0.88 / 0.85 | Override de umbrales calibrados |
-| `--no-special-tokens` | False | Serializar sin tokens `[BLK_*]` (modo zero-shot) |
-
----
-
-## Etapa 2-ter — Entregables de consultoría INER
-
-Construyen los dos entregables finales del eje consultoría (schema **v2**) a partir de los artefactos
-de etiquetado del perfil canónico `tesis` (`output/<variant>/dataset.parquet` → entity_id,
-`interim/records_interim.parquet`) y los CSV crudos. Escriben en el perfil **`iner`** (carpeta separada
-de los ejes tesis).
-
+## 4. Preparación del entorno y modelos
 ```bash
-# JSON consolidado entity-centric v2 (Producto 3 — Base de Datos Consolidada)
-python scripts/build_consolidated_json.py                 # tesis → iner/consolidated_entities_v2.json (indent=2)
-python scripts/build_consolidated_json.py --indent -1     # JSON compacto (sin sangría)
-python scripts/build_consolidated_json.py --schema-version v1   # → consolidated_entities_v1.json (histórico)
-
-# Documentación del entregable (Producto 4): proyecta el schema + catálogo de métodos
-python scripts/build_data_dictionary.py                   # → Diccionario_Final_INER.csv + metodos_comparacion.json + copia del schema
+micromamba activate tesis
+uv pip install -e .
+python scripts/download_model.py --all
+python scripts/measure_token_distribution.py --model BETO --dataset "$DATASET"
 ```
 
-**Salidas (en `processed/iner/`):**
-- `consolidated_entities_v2.json` (oficial) y `consolidated_entities_v1.json` (histórico): un objeto por
-  `entity_id` con `cluster_size`, `decision`, `items[]` (`{item, source, linking_values, record}`), `scores[]`.
-- `consolidated_entities.schema.json`: el **JSON Schema** formal del entregable (spec validable; fuente de
-  verdad de las descripciones, se edita a mano en `docs/`).
-- `Diccionario_Final_INER.csv`: vista plana del schema (`campo|tipo|descripcion`, rutas con puntos), **derivada
-  del schema** por `build_data_dictionary.py` — no se edita a mano.
-- `metodos_comparacion.json`: catálogo de métodos de `scores`, desde `comparison_methods.REGISTRY`.
+Los modelos quedan en `$INER_DATA_ROOT/models/pretrained/`; sincronice ese directorio antes de trabajar en nodos sin internet. Para una descarga individual use `download_model.py --model <HUGGINGFACE_ID> --name <NOMBRE_LOCAL>`.
 
-Detalle del schema en `propuesta_entregable_JSON.md` → "Diseño v2".
-
----
-
-## Etapa 3 — Partición train/val/test (`run_splitting.py`)
-
-Divide el dataset a nivel de entidad (sin data leakage). Produce un único parquet con columna `split`.
-
+## 5. Partición por entidad
 ```bash
-# Perfil principal de tesis (lee dataset.parquet)
-python scripts/run_splitting.py --perfil tesis1
-
-# Dataset v2 (etiquetado robusto post-Ruta A)
-python scripts/run_splitting.py --perfil tesis1 --dataset dataset_v2.parquet
-
-# Con proporciones personalizadas
-python scripts/run_splitting.py --perfil tesis1 --train 0.70 --val 0.15 --seed 42
-
-# Para el dataset sin tokens (evaluación zero-shot)
-python scripts/run_splitting.py --perfil tesis0_sin_tokens
-
-# Otros perfiles disponibles
-python scripts/run_splitting.py --perfil tesis0
-python scripts/run_splitting.py --perfil tesis2
-python scripts/run_splitting.py --perfil iner
+python scripts/run_splitting.py --variant "$VARIANT"
 ```
 
-**Salida:** `processed/<perfil>/<stem>_split.parquet` (ej. `dataset_split.parquet`, `dataset_v2_split.parquet`)
+Produce `$SPLIT` con columna `split`. Con `--dataset` puede indicarse otro parquet, pero la salida seguirá nombrándose a partir de `--variant`.
 
----
-
-## Etapa 4A — Evaluación zero-shot (`evaluate_zeroshot.py`)
-
-Evalúa modelos preentrenados **sin fine-tuning** sobre los pares residuales del INER.
-Métricas: Recall@K (K=1,5,10,20,50) y MRR.
+## 6. Evaluación zero-shot
+La evaluación zero-shot usa normalmente la variante sin tokens y sin nulos:
 
 ```bash
-# Un modelo
-python scripts/evaluate_zeroshot.py --model BETO
-python scripts/evaluate_zeroshot.py --model RoBERTa-biomedical
-python scripts/evaluate_zeroshot.py --model paraphrase-multilingual
-
-# Varios modelos en una pasada
-python scripts/evaluate_zeroshot.py --model BETO --model RoBERTa-biomedical
-
-# Todos los modelos conocidos
-python scripts/evaluate_zeroshot.py --all
-
-# Dataset alternativo
-python scripts/evaluate_zeroshot.py --model BETO --dataset /ruta/custom/dataset.parquet
-```
-
-**Dataset por defecto:** `processed/tesis0_sin_tokens/dataset.parquet`  
-**Salida:** `outputs/evaluation/zeroshot_<model>.json`
-
----
-
-## Etapa 4B — Sanity check paraphrase
-
-Verifica que `paraphrase-multilingual` funciona correctamente antes de interpretar sus métricas.
-Sin argumentos.
-
-```bash
+python scripts/evaluate_zeroshot.py --all \
+  --dataset "$INER_DATA_ROOT/processed/default/output/notok_skipnull/dataset.parquet"
 python scripts/sanity_check_paraphrase.py
 ```
 
----
+Los resultados se escriben en `outputs/evaluation/`.
 
-## Etapa 4C — Evaluación del Bi-Encoder fine-tuneado (`evaluate_finetuned.py`)
-
-Evalúa checkpoints entrenados con MNRL sobre el **split de test**.  
-Métricas: Recall@K (K=1,5,10,20,50), MRR y Δseparabilidad.  
-Requiere `dataset_split.parquet` (Etapa 3) — **no** `dataset.parquet`.
+## 7. Entrenamiento del Bi-Encoder
+Smoke test local:
 
 ```bash
-# Un run (por defecto evalúa best/ sobre split=test)
-python scripts/evaluate_finetuned.py --checkpoint beto_mnrl_hpc_run_e
-
-# Época específica en lugar de best/
-python scripts/evaluate_finetuned.py --checkpoint beto_mnrl_hpc_run_e --epoch 15
-
-# Varios runs en una pasada (genera tabla resumen al final)
-python scripts/evaluate_finetuned.py \
-    --checkpoint beto_mnrl_hpc_run_e beto_mnrl_hpc_run_f \
-              roberta_bio_hpc_run_a roberta_bio_hpc_run_b
-
-# Todos los checkpoints con best/ disponible
-python scripts/evaluate_finetuned.py --all
-
-# Evaluar sobre val en lugar de test (útil para debug)
-python scripts/evaluate_finetuned.py --checkpoint beto_mnrl_hpc_run_e --split val
+python scripts/run_train_biencoder.py --model BETO --dataset "$SPLIT" \
+  --output "$INER_DATA_ROOT/models/checkpoints/${BE_RUN}_smoke" \
+  --epochs 1 --batch-size 8 --n-aug 0 --max-seq-length 384
 ```
 
-**Dataset por defecto:** `processed/tesis1/dataset_split.parquet`  
-**Salida:** `outputs/evaluation/finetuned/finetuned_results_<run>.json`
-
-### HPC — lanzar como job SLURM
+Job SLURM con BETO:
 
 ```bash
-# Un job por run (corren en paralelo si hay nodos libres)
-sbatch run_evaluate_biencoder.sh beto_mnrl_hpc_run_e
-sbatch run_evaluate_biencoder.sh beto_mnrl_hpc_run_f
-sbatch run_evaluate_biencoder.sh roberta_bio_hpc_run_a
-sbatch run_evaluate_biencoder.sh roberta_bio_hpc_run_b
-
-# Monitorear
-squeue -u est_posgrado_uziel.lujan
+sbatch --job-name="$BE_RUN" train_biencoder_beto.sh \
+  0.07 "$BE_RUN" "$SPLIT" 64 20 384
 ```
 
-### Bajar resultados del cluster
+Para RoBERTa use `train_biencoder_roberta.sh` con los mismos argumentos. Los checkpoints quedan en `models/checkpoints/<run>/`; `best/` es el checkpoint usual.
+
+## 8. Evaluación y visualización del Bi-Encoder
+```bash
+python scripts/evaluate_finetuned.py --checkpoint "$BE_RUN" --dataset "$SPLIT" --split test
+python scripts/plot_training_curves.py --checkpoint "$BE_RUN"
+python scripts/visualize_embeddings.py --checkpoint "$BE_RUN" \
+  --dataset "$SPLIT" --split test --dims 3
+sbatch eval_biencoder.sh "$BE_RUN" test "$SPLIT"
+```
+
+## 9. Hard Negative Mining
+Use un directorio por variante para no sobreescribir pares de otros experimentos:
 
 ```bash
-rsync -avz labcimatexterno:~/Data/INER/outputs/evaluation/finetuned/ \
-    ~/Data/INER/outputs/evaluation/finetuned/ --mkpath
+python scripts/mine_hard_pairs.py --checkpoint "$BE_RUN" --dataset "$SPLIT" \
+  --top-k 20 --output-dir "$PAIRS_DIR"
 ```
 
----
+Produce `pairs_train.parquet`, `pairs_val.parquet` y `pairs_test.parquet`.
 
-## Etapa 5 — Entrenamiento Bi-Encoder (`run_train_biencoder.py`)
+## 10. Entrenamiento del Cross-Encoder
+```bash
+python scripts/train_crossencoder.py --model BETO --dataset "$SPLIT" \
+  --pairs-train "$PAIRS_DIR/pairs_train.parquet" \
+  --pairs-val "$PAIRS_DIR/pairs_val.parquet" \
+  --output "$INER_DATA_ROOT/models/checkpoints/$CE_RUN" \
+  --epochs 3 --batch-size 16 --lr 2e-5 --max-seq-length 512 --only-best
 
-Entrena el Bi-Encoder con MNRL. Consume `dataset_split.parquet` (Etapa 3).
+sbatch --job-name="$CE_RUN" train_crossencoder_beto.sh "$CE_RUN" "$SPLIT" \
+  "$PAIRS_DIR/pairs_train.parquet" "$PAIRS_DIR/pairs_val.parquet" 3 16
+```
 
-**Parámetros clave:**
-
-| Flag | Default | Descripción |
-|---|---|---|
-| `--model` | BETO | Nombre del modelo en `models/pretrained/` |
-| `--dataset` | `tesis1/dataset_split.parquet` | Ruta al parquet con columna `split` |
-| `--output` | `models/checkpoints/<model>_mnrl` | Directorio de checkpoints |
-| `--epochs` | 2 | Épocas de entrenamiento |
-| `--batch-size` | 8 | Tamaño de batch (usar 64+ en HPC) |
-| `--n-aug` | 0 | Pares sintéticos por registro (0 = solo naturales) |
-| `--max-seq-length` | 384 | Tokens máximos (384 local, 512 HPC) |
-| `--viz` | False | Guarda matrices MNRL de 3 batches de la época 1 |
-
-**Salida:** `models/checkpoints/<output>/epoch_NN/` + `training_history.json`
-
-### Smoke test local (1 época, sin augmentación)
+## 11. Evaluación y calibración del Cross-Encoder
+Busque el umbral sobre validación, asígnelo a `THRESHOLD` y después evalúe test:
 
 ```bash
-python scripts/run_train_biencoder.py \
-    --model BETO \
-    --output ~/Data/INER/models/checkpoints/beto_mnrl_smoke \
-    --epochs 1 --batch-size 8 --n-aug 0 --max-seq-length 384 --viz
+CE_BEST="$INER_DATA_ROOT/models/checkpoints/$CE_RUN/best"
+python scripts/evaluate_crossencoder.py --checkpoint "$CE_BEST" --dataset "$SPLIT" \
+  --pairs "$PAIRS_DIR/pairs_val.parquet" --find-threshold
+THRESHOLD=0.00  # Sustituir por el valor obtenido en validación
+python scripts/evaluate_crossencoder.py --checkpoint "$CE_BEST" --dataset "$SPLIT" \
+  --pairs "$PAIRS_DIR/pairs_test.parquet" --threshold "$THRESHOLD"
+python scripts/calibrate_crossencoder.py --checkpoint "$CE_BEST" --dataset "$SPLIT" \
+  --val-pairs "$PAIRS_DIR/pairs_val.parquet" \
+  --test-pairs "$PAIRS_DIR/pairs_test.parquet"
 ```
 
-### Local con dataset alternativo
+Wrappers disponibles: `eval_crossencoder.sh` y `calibrate_crossencoder.sh`.
+
+## 12. Exportación de embeddings
+La exportación usa el dataset completo, no el split. Indique la salida para no escribir dentro del directorio de entrada:
 
 ```bash
-# Ejemplo: dataset sin tokens especiales
-python scripts/run_train_biencoder.py \
-    --model BETO \
-    --dataset ~/Data/INER/processed/tesis0_sin_tokens/dataset_split.parquet \
-    --output ~/Data/INER/models/checkpoints/beto_mnrl_sin_tokens \
-    --epochs 1 --batch-size 8 --n-aug 0 --max-seq-length 384
+python scripts/export_embeddings.py --checkpoint "$BE_RUN" --dataset "$DATASET" \
+  --output "$INER_DATA_ROOT/embeddings/${VARIANT}_embeddings.parquet"
 ```
 
-### HPC — baseline limpio (primer job real)
-
-```bash
-python scripts/run_train_biencoder.py \
-    --model BETO \
-    --output ~/Data/INER/models/checkpoints/beto_mnrl_hpc_baseline \
-    --epochs 10 --batch-size 64 --n-aug 0 --max-seq-length 512
-```
-
-### HPC — con augmentación (una vez rediseñada)
-
-```bash
-python scripts/run_train_biencoder.py \
-    --model BETO \
-    --output ~/Data/INER/models/checkpoints/beto_mnrl_hpc_aug \
-    --epochs 10 --batch-size 64 --n-aug 2 --max-seq-length 512
-```
-
-### HPC — RoBERTa-biomedical (tras confirmar BETO)
-
-```bash
-python scripts/run_train_biencoder.py \
-    --model RoBERTa-biomedical \
-    --output ~/Data/INER/models/checkpoints/roberta_bio_hpc_baseline \
-    --epochs 10 --batch-size 64 --n-aug 0 --max-seq-length 512
-```
-
-> **Convención de nombres para `--output`:** `<modelo>_mnrl_<entorno>_<variante>`
-> Ejemplos: `beto_mnrl_hpc_baseline`, `beto_mnrl_hpc_aug_v2`, `roberta_bio_hpc_baseline`
-> Esto evita sobreescribir checkpoints anteriores y facilita comparar runs en el historial.
-
----
-
-## Visualización — Curvas de pérdida (`plot_training_curves.py`)
-
-Genera gráficas de train_loss y val_loss a partir de `training_history.json`.  
-Los JSON deben estar disponibles localmente (bajarlos del cluster si es necesario).
-
-```bash
-# Bajar training_history.json del cluster (archivos pequeños)
-for run in beto_mnrl_hpc_run_e beto_mnrl_hpc_run_f roberta_bio_hpc_run_a roberta_bio_hpc_run_b; do
-    rsync -avz "labcimatexterno:~/Data/INER/models/checkpoints/${run}/training_history.json" \
-        ~/Data/INER/models/checkpoints/${run}/ --mkpath
-done
-
-# Un run — subplots separados (perspectiva por defecto)
-python scripts/plot_training_curves.py --checkpoint beto_mnrl_hpc_run_e
-
-# Varios runs con figura de comparación val_loss
-python scripts/plot_training_curves.py \
-    --checkpoint beto_mnrl_hpc_run_e beto_mnrl_hpc_run_f \
-              roberta_bio_hpc_run_a roberta_bio_hpc_run_b \
-    --compare
-
-# Twin axes: train y val en el mismo eje con escalas independientes
-# Guarda con sufijo _twin — no sobreescribe las figuras existentes
-python scripts/plot_training_curves.py \
-    --checkpoint beto_mnrl_hpc_run_e beto_mnrl_hpc_run_f \
-              roberta_bio_hpc_run_a roberta_bio_hpc_run_b \
-    --compare --twin-axes
-
-# Todos los runs con history disponible
-python scripts/plot_training_curves.py --all
-```
-
-**Salida:** `outputs/figures/training_curves_<run>.png` (subplots) /  
-`outputs/figures/training_curves_<run>_twin.png` (twin axes) /  
-`outputs/figures/training_curves_comparison.png`
-
-> El script nunca sobreescribe figuras existentes — omite con aviso si el archivo ya existe.
-
----
-
-## Flujo completo (tesis con v2 — recomendado)
-
-```bash
-# 1. Descargar modelos (una sola vez)
-python scripts/download_model.py --all
-
-# 2. Preprocesar
-python scripts/run_preprocessing.py --perfil tesis1
-
-# 3. Clasificar pares y producir xlsx editable
-python scripts/run_dataset_v2.py --step classify --perfil tesis1
-
-# 4. [Revisar pairs_for_review.xlsx — marcar 'decision' en los 'no_confirmado']
-
-# 5. Producir dataset_v2.parquet con decisiones aplicadas
-python scripts/run_dataset_v2.py --step finalize --perfil tesis1
-
-# 6. Particionar (ver nota abajo sobre integración con dataset_v2.parquet)
-python scripts/run_splitting.py --perfil tesis1
-
-# 7. Entrenar
-python scripts/run_train_biencoder.py --model BETO --epochs 10 --batch-size 64 --n-aug 0
-```
-
-> **Integración con `run_splitting.py`:** splitting acepta `--dataset dataset_v2.parquet` para usar el output etiquetado de Ruta A. La salida se deriva del input (`dataset_v2_split.parquet`), por lo que los splits v1 y v2 coexisten sin pisarse.
-
-## Flujo completo (ejemplo tesis1)
-
-```bash
-# 1. Descargar modelos (una sola vez)
-python scripts/download_model.py --all
-
-# 2. Preprocesar
-python scripts/run_preprocessing.py --perfil tesis1
-
-# 3. Construir dataset
-python scripts/run_dataset.py --perfil tesis1
-
-# 4. Particionar
-python scripts/run_splitting.py --perfil tesis1
-
-# 5. Entrenar
-python scripts/run_train_biencoder.py --model BETO --epochs 10 --batch-size 64 --n-aug 0
-```
-
-## Flujo completo (evaluación zero-shot)
-
-```bash
-# 1. Preprocesar con perfil base
-python scripts/run_preprocessing.py --perfil tesis0
-
-# 2. Construir dataset sin tokens
-python scripts/run_dataset.py --perfil tesis0 --no-special-tokens
-
-# 3. Evaluar modelos preentrenados
-python scripts/evaluate_zeroshot.py --all
-```
+`export_embeddings.sh` no acepta una ruta de salida y usa el nombre predeterminado junto al dataset; prefiera la CLI anterior para mantener separados los artefactos.

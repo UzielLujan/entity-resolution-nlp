@@ -39,7 +39,7 @@ A diferencia de la propuesta original de DITTO [1], que aplana los registros en 
 
 La arquitectura es inherentemente robusta a la dispersión de datos (sparsity). A diferencia de los métodos clásicos que requieren imputación (medias, modas), este enfoque aprovecha el **mecanismo de Auto-Atención (Self-Attention) de los Transformers**.
 
-* **Ausencia de Datos:** Si un atributo es `NULL`, se omite o se representa con un token vacío `[VAL_NULL]` en la secuencia serializada.
+* **Ausencia de Datos:** Si un atributo es `NULL`, se omite o se representa con un token vacío `[VAL_NULL]` en la secuencia serializada. *Nota: en la implementación actual (`dataset.py`) se usa el texto plano `"NULL"` en lugar del token especial `[VAL_NULL]` — la decisión de adoptar el token especial está pendiente.*
 
 * **Mecanismo:** El modelo aprende a redistribuir los pesos de atención hacia los tokens presentes, ignorando dinámicamente la ausencia de información sin introducir ruido numérico artificial en la representación vectorial.
 
@@ -74,10 +74,10 @@ Para resolver la explosión combinatoria $\mathcal{O}(N^2)$ inherente a la vincu
 
 | Columna | Tipo de Dato | Descripción Funcional |
 | :--- | :--- | :--- |
-| `record_id` | String | Identificador primario único de la observación en su base de origen (ej. `Econo_1045`). |
+| `record_id` | int64 | Identificador primario único de la observación — entero secuencial global asignado tras concatenar los 3 CSVs. |
 | `source_db` | String | Base de datos de procedencia (`comorbilidades`, `economica`, `tsocial`). |
 | `text` | String | Secuencia de texto crudo serializado con tokens especiales, sin saltos de línea (ej. `[BLK_ID] Nombre...`). |
-| `entity_id` | String | **Etiqueta Maestra.** Identificador global único que agrupa a la misma entidad (paciente real) a través de las bases. |
+| `entity_id` | int64 | **Etiqueta Maestra.** Identificador global único que agrupa a la misma entidad (paciente real) a través de las bases. |
 
 **Lógica de Agrupamiento para el Entrenamiento (MNRL):**
 
@@ -381,7 +381,7 @@ $$\mathcal{L}_{BCE} = - \left( y \cdot \log(p) + (1 - y) \cdot \log(1 - p) \righ
 
 Donde:
 * $y \in \{0, 1\}$ es la etiqueta real (1 para Match, 0 para No-Match).
-* $p = \text{Softmax}(W \cdot \text{[CLS]})$ es la probabilidad predicha por el modelo de que el par sea una coincidencia [1].
+* $p = \sigma(w^\top h_{\text{[CLS]}})$ es la probabilidad de match, obtenida aplicando la función **sigmoide** sobre el **logit escalar único** que emite la cabeza de clasificación (`num_labels=1`). Se prefiere esta formulación de salida única sobre un *softmax* de dos clases por su mayor estabilidad numérica (`BCEWithLogitsLoss` combina sigmoide y log-loss vía *log-sum-exp*) y porque habilita la calibración directa del umbral de decisión en inferencia.
 
 Esta estrategia de minería de negativos difíciles obliga a la red de Atención Cruzada a especializarse exclusivamente en discriminar discrepancias minúsculas y detalles finos que lograron engañar a la etapa de SBERT.
 
@@ -413,10 +413,10 @@ $$S_{pair} = \text{[CLS]} \ q \ \text{[SEP]} \ c_k \ \text{[SEP]}$$
 **Gestión de la Ventana de Contexto:**
 Dado que el Cross-Encoder procesa el par concatenado, la ventana máxima de 512 tokens del Transformer se comparte entre ambos registros. Por lo tanto, el algoritmo de resumen estadístico (TF-IDF) descrito en la Sección 2.3 se parametriza para restringir cada secuencia individual a un máximo de **256 tokens**, garantizando que el par unificado nunca exceda el límite de memoria del modelo [1].
 
-Los $K$ pares concatenados se procesan a través de DITTO, el cual utiliza sus capas de auto-atención profunda para evaluar las discrepancias finas carácter por carácter. La salida es una probabilidad de coincidencia para cada candidato evaluado.
+Los $K$ pares concatenados se procesan a través de DITTO, el cual utiliza sus capas de auto-atención profunda para evaluar las discrepancias finas carácter por carácter. La salida es una probabilidad de coincidencia para cada candidato evaluado, que se compara contra un **umbral de decisión calibrado** sobre el conjunto de validación (ver Sección 4.5).
 
 ### 5.3. Criterio de Decisión y Resolución de Conflictos
-La decisión final de *Record Linkage* no depende de un vector de características manual, sino de la probabilidad emitida por la capa Softmax del Cross-Encoder.
+La decisión final de *Record Linkage* no depende de un vector de características manual, sino de la probabilidad emitida por la **cabeza de salida única (sigmoide sobre el logit)** del Cross-Encoder.
 
 El sistema aplica un umbral de decisión estricto $\tau_{match}$ (ej. $\tau = 0.90$) sobre la probabilidad predicha:
 $$P(\text{Match} | q, c_k) = \sigma(W \cdot \text{[CLS]}_{pair})$$
