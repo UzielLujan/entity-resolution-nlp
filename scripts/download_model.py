@@ -1,4 +1,13 @@
-"""Descarga modelos de HuggingFace Hub y los guarda localmente.
+"""Descarga modelos desde Hugging Face o recarga copias locales para prepararlos como SentenceTransformer.
+
+El mismo flujo se aplica a BETO, RoBERTa-biomedical y paraphrase-multilingual:
+descarga o recarga el modelo, registra en su propio tokenizador los tokens
+estructurales [BLK_*], [COL] y [VAL], redimensiona su matriz de embeddings y
+guarda el artefacto listo para usar sin internet en el cluster.
+
+El redimensionamiento asigna vectores iniciales a los tokens nuevos. Durante el
+entrenamiento del Bi-Encoder, train_biencoder.py reemplaza esos vectores con una
+inicializacion semantica basada en palabras ancla.
 
 Uso:
     python scripts/download_model.py --model dccuchile/bert-base-spanish-wwm-cased --name BETO
@@ -67,7 +76,11 @@ SPECIAL_TOKENS = [
 
 
 def download_model(model_id: str, output_name: str) -> Path:
-    """Descarga (o carga desde disco) un backbone y lo guarda con tokens especiales registrados."""
+    """Prepara y guarda un modelo con sus tokens especiales registrados.
+
+    Cada modelo conserva su tokenizador propio. El registro es idempotente: si
+    el modelo local ya contiene los tokens, no se vuelven a anadir.
+    """
     output_dir = MODELS_DIR / "pretrained" / output_name
 
     if output_dir.exists():
