@@ -72,13 +72,13 @@ def split_path(variant: str = DEFAULT_VARIANT) -> Path:
     return variant_data_dir(variant) / "split.parquet"
 
 def pairs_path(split_name: str, variant: str = DEFAULT_VARIANT) -> Path:
-    """Pares canónicos de train, val o test para el Cross-Encoder."""
+    """Pares de train, val o test para el Cross-Encoder."""
     if split_name not in {"train", "val", "test"}:
         raise ValueError("split_name debe ser train, val o test")
     return variant_data_dir(variant) / f"pairs_{split_name}.parquet"
 
 def embeddings_path(variant: str = DEFAULT_VARIANT) -> Path:
-    """Embeddings canónicos exportados para una variante."""
+    """Embeddings exportados para una variante."""
     return EMBEDDINGS_DIR / _validate_variant(variant) / "embeddings.parquet"
 
 def biencoder_run_dir(run_name: str, variant: str = DEFAULT_VARIANT) -> Path:
@@ -108,7 +108,7 @@ def check_paths() -> None:
         label = "requerido" if required else "opcional"
         print(f"  {status:5}  {variant:18} ({label})  {path}")
         if required and not path.is_file():
-            errors.append(f"Falta el dataset canónico: {path}")
+            errors.append(f"Falta el dataset por default: {path}")
 
     print("\n── Salidas del pipeline neuronal ────────────────────────────")
     for name, path in {
@@ -124,7 +124,7 @@ def check_paths() -> None:
     if errors:
         raise FileNotFoundError("\n".join(errors))
 
-    print("\nConfiguración válida para ejecutar la variante canónica.")
+    print("\nConfiguración válida para ejecutar la variante por default.")
 
 
 if __name__ == "__main__":
