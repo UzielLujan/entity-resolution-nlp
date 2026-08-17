@@ -17,7 +17,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import MODELS_DIR
+from record_linkage.config import PRETRAINED_MODELS_DIR
 from record_linkage.models.biencoder import build_biencoder, encode_texts
 
 MODEL_NAME = "paraphrase-multilingual"
@@ -51,7 +51,7 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def main():
-    model_path = MODELS_DIR / "pretrained" / MODEL_NAME
+    model_path = PRETRAINED_MODELS_DIR / MODEL_NAME
     if not model_path.exists():
         print(f"ERROR: Modelo no encontrado en {model_path}")
         print("Ejecuta primero: python scripts/download_model.py --model paraphrase-multilingual")

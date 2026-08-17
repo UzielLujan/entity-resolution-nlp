@@ -23,7 +23,7 @@ from transformers import AutoTokenizer
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import CONSULTORIA_OUTPUT_DIR, MODELS_DIR
+from record_linkage.config import PREPARED_DATA_DIR, PRETRAINED_MODELS_DIR
 
 
 VARIANTS = ["tok_keepnull", "tok_skipnull", "notok_keepnull", "notok_skipnull"]
@@ -88,7 +88,7 @@ def main():
                         help="Guarda tabla en CSV para reporte de tesis")
     args = parser.parse_args()
 
-    model_path = MODELS_DIR / "pretrained" / args.model
+    model_path = PRETRAINED_MODELS_DIR / args.model
     print(f"Tokenizador: {model_path}")
     tokenizer = AutoTokenizer.from_pretrained(str(model_path))
 
@@ -96,7 +96,7 @@ def main():
     if args.dataset:
         rows.append(stats_for_variant(tokenizer, Path(args.dataset), Path(args.dataset).parent.name))
     else:
-        consultoria_output = CONSULTORIA_OUTPUT_DIR
+        consultoria_output = PREPARED_DATA_DIR
         for v in VARIANTS:
             parquet_path = consultoria_output / v / "dataset.parquet"
             if not parquet_path.exists():

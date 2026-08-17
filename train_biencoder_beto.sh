@@ -10,7 +10,7 @@
 #SBATCH --output=logs/%x-%j.log
 
 # Entrena el Bi-Encoder con BETO + MNRL sobre un dataset_split.parquet dado.
-# Hiperparámetros congelados a la config ganadora de Run E (val_loss=1.0224 sobre v1):
+# Hiperparámetros de referencia para los runs v2:
 #   lr=2e-5, n-aug=0, max-seq=512, patience=3, epochs=20
 # Lo que SÍ se parametriza desde sbatch (en orden):
 #   $1 TEMPERATURE  default 0.07

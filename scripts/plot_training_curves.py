@@ -5,8 +5,8 @@ Modos:
   - Comparación: val_loss de varios runs en una sola figura.
 
 Uso:
-    python scripts/plot_training_curves.py --checkpoint beto_mnrl_hpc_run_e
-    python scripts/plot_training_curves.py --checkpoint beto_mnrl_hpc_run_e beto_mnrl_hpc_run_f
+    python scripts/plot_training_curves.py --checkpoint beto_mnrl_hpc_v2_tok_skipnull
+    python scripts/plot_training_curves.py --checkpoint beto_mnrl_hpc_v2_tok_skipnull beto_mnrl_hpc_v2_notok_skipnull
     python scripts/plot_training_curves.py --all
     python scripts/plot_training_curves.py --all --compare
 
@@ -24,7 +24,13 @@ import matplotlib.ticker as ticker
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import FIGURES_DIR, MODELS_DIR
+from record_linkage.config import (
+    BIENCODER_MODELS_DIR,
+    DEFAULT_VARIANT,
+    FIGURES_DIR,
+    SUPPORTED_VARIANTS,
+    biencoder_run_dir,
+)
 
 
 # === Naming convention oficial para resultados de tesis ===
@@ -34,12 +40,6 @@ from record_linkage.config import FIGURES_DIR, MODELS_DIR
 _MODEL_DISPLAY = {"beto": "BETO", "roberta": "RoBERTa-bio"}
 
 _CHECKPOINT_PATTERNS = [
-    # beto_mnrl_hpc_run_e → ("Bi-Encoder · BETO v1 · Run E", "be_beto_v1_runE")
-    (re.compile(r"^beto_mnrl_hpc_run_([a-z])$"),
-     lambda m: ("beto", "v1", f"Run {m.group(1).upper()}", f"be_beto_v1_run{m.group(1).upper()}")),
-    # roberta_bio_hpc_run_a → ("Bi-Encoder · RoBERTa-bio v1 · Run A", "be_roberta_v1_runA")
-    (re.compile(r"^roberta_bio_hpc_run_([a-z])$"),
-     lambda m: ("roberta", "v1", f"Run {m.group(1).upper()}", f"be_roberta_v1_run{m.group(1).upper()}")),
     # beto_mnrl_hpc_v2_tok_skipnull → ("Bi-Encoder · BETO v2 · tok_skipnull", "be_beto_v2_tok_skipnull")
     (re.compile(r"^beto_mnrl_hpc_v2_(.+)$"),
      lambda m: ("beto", "v2", m.group(1), f"be_beto_v2_{m.group(1)}")),
@@ -75,8 +75,8 @@ plt.rcParams.update({
 })
 
 
-def load_history(checkpoint_name: str) -> dict | None:
-    hist_path = MODELS_DIR / "checkpoints" / checkpoint_name / "training_history.json"
+def load_history(checkpoint_name: str, variant: str) -> dict | None:
+    hist_path = biencoder_run_dir(checkpoint_name, variant) / "training_history.json"
     if not hist_path.exists():
         print(f"  AVISO: no se encontró {hist_path}")
         return None
@@ -194,8 +194,8 @@ def plot_comparison(checkpoints_data: list[tuple[str, dict]], output_dir: Path,
     print(f"  Guardado: {out_path}")
 
 
-def list_available_checkpoints() -> list[str]:
-    ckpt_root = MODELS_DIR / "checkpoints"
+def list_available_checkpoints(variant: str) -> list[str]:
+    ckpt_root = BIENCODER_MODELS_DIR / variant
     if not ckpt_root.exists():
         return []
     return sorted(
@@ -220,12 +220,13 @@ def main():
         "--compare", action="store_true",
         help="Genera figura de comparación val_loss además de las individuales",
     )
+    parser.add_argument("--variant", choices=SUPPORTED_VARIANTS, default=DEFAULT_VARIANT)
     args = parser.parse_args()
 
     if args.all:
-        checkpoints = list_available_checkpoints()
+        checkpoints = list_available_checkpoints(args.variant)
         if not checkpoints:
-            print(f"ERROR: no se encontraron runs en {MODELS_DIR / 'checkpoints'}")
+            print(f"ERROR: no se encontraron runs en {BIENCODER_MODELS_DIR / args.variant}")
             return 1
         print(f"Runs encontrados: {checkpoints}")
         args.compare = True  # con --all siempre genera comparación
@@ -237,7 +238,7 @@ def main():
 
     loaded = []
     for name in checkpoints:
-        data = load_history(name)
+        data = load_history(name, args.variant)
         if data:
             loaded.append((name, data))
 

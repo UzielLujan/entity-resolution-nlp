@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import torch
 
+from record_linkage.config import EVALUATION_DIR
 from record_linkage.evaluation.metrics import compute_binary_classification_metrics
 from record_linkage.models.crossencoder import build_crossencoder, score_pairs
 
@@ -152,7 +153,7 @@ def calibrate_crossencoder(
     val_pairs_path: Path,
     test_pairs_path: Path,
     dataset_path: Path,
-    output_dir: Union[str, Path] = "~/Data/INER/outputs/evaluation/calibration",
+    output_dir: Optional[Union[str, Path]] = None,
     tau_dec: float = 0.12,
     batch_size: int = 32,
     max_length: int = 512,
@@ -184,7 +185,11 @@ def calibrate_crossencoder(
     val_pairs_path  = Path(val_pairs_path).expanduser()
     test_pairs_path = Path(test_pairs_path).expanduser()
     dataset_path    = Path(dataset_path).expanduser()
-    output_dir = Path(output_dir).expanduser()
+    output_dir = (
+        Path(output_dir).expanduser()
+        if output_dir
+        else EVALUATION_DIR / "crossencoder" / "calibration"
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     # Si el checkpoint es un subdir convencional (best/final/...), usar el nombre del run
     ckpt_name = checkpoint_path.name

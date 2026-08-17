@@ -10,7 +10,6 @@
 #SBATCH --output=logs/%x-%j.log
 
 # Entrena el Bi-Encoder con RoBERTa-biomedical + MNRL sobre un dataset_split.parquet.
-# Hiperparámetros congelados a la config de RoBERTa Run B (val=1.0313 sobre v1).
 # Parámetros desde sbatch (en orden):
 #   $1 TEMPERATURE  default 0.07
 #   $2 RUN_NAME     default roberta_bio_v2

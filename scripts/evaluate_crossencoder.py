@@ -4,8 +4,8 @@ Métricas: F1, Precision, Recall, Accuracy, PR-AUC, ROC-AUC + matriz de confusi�
 
 Uso:
     python scripts/evaluate_crossencoder.py \\
-        --checkpoint ~/Data/INER/models/checkpoints/<variante>_ce/best \\
-        --pairs ~/Data/INER/tesis/splits/pairs_test.parquet
+        --checkpoint ~/Data/INER/modeling/models/crossencoder/<variante>/<run>/best \\
+        --pairs ~/Data/INER/modeling/data/<variante>/pairs_test.parquet
 
     # Calibrar threshold sobre validación:
     python scripts/evaluate_crossencoder.py \\
@@ -26,7 +26,7 @@ from record_linkage.evaluation.crossencoder_eval import (
 )
 
 
-CE_EVAL_DIR = EVALUATION_DIR / "crossencoder"
+CE_EVAL_DIR = EVALUATION_DIR / "crossencoder" / "classification"
 
 
 def main():

@@ -6,9 +6,9 @@ Métricas por par direccional de bases (A→B y B→A — permutations):
   - candidate_pool_stats: max/mean positives por entidad en el pool
 
 Uso:
-    python scripts/evaluate_finetuned.py --checkpoint beto_mnrl_hpc_run_e
-    python scripts/evaluate_finetuned.py --checkpoint beto_mnrl_hpc_run_e --epoch 15
-    python scripts/evaluate_finetuned.py --checkpoint beto_mnrl_hpc_run_e --split val
+    python scripts/evaluate_finetuned.py --checkpoint beto_mnrl_hpc_v2_tok_skipnull
+    python scripts/evaluate_finetuned.py --checkpoint beto_mnrl_hpc_v2_tok_skipnull --epoch 15
+    python scripts/evaluate_finetuned.py --checkpoint beto_mnrl_hpc_v2_tok_skipnull --split val
     python scripts/evaluate_finetuned.py --checkpoint A B C   (varios runs)
     python scripts/evaluate_finetuned.py --all
 
@@ -22,7 +22,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import EVALUATION_DIR, SPLITS_DIR
+from record_linkage.config import (
+    DEFAULT_VARIANT,
+    EVALUATION_DIR,
+    SUPPORTED_VARIANTS,
+    split_path,
+)
 from record_linkage.evaluation.biencoder_eval import (
     K_VALUES_DEFAULT,
     evaluate_finetuned_checkpoint,
@@ -30,7 +35,7 @@ from record_linkage.evaluation.biencoder_eval import (
 )
 
 
-FINETUNED_DIR = EVALUATION_DIR / "finetuned"
+FINETUNED_DIR = EVALUATION_DIR / "biencoder" / "finetuned"
 
 
 def _print_summary(checkpoints: list[str], output_dir: Path) -> None:
@@ -62,6 +67,7 @@ def main():
                        help="Evalúa todos los checkpoints que tengan best/")
     parser.add_argument("--epoch", type=int, default=None,
                         help="Evaluar epoch_XX específica en lugar de best/")
+    parser.add_argument("--variant", choices=SUPPORTED_VARIANTS, default=DEFAULT_VARIANT)
     parser.add_argument("--split", choices=["train", "val", "test"], default="test",
                         help="Split a evaluar (default: test)")
     parser.add_argument("--dataset", type=str, default=None,
@@ -70,13 +76,13 @@ def main():
 
     dataset_path = (
         Path(args.dataset) if args.dataset
-        else SPLITS_DIR / "tok_skipnull_split.parquet"
+        else split_path(args.variant)
     )
     if not dataset_path.exists():
         print(f"ERROR: dataset no encontrado en {dataset_path}")
         return 1
 
-    checkpoints = list_available_checkpoints() if args.all else args.checkpoints
+    checkpoints = list_available_checkpoints(args.variant) if args.all else args.checkpoints
     if not checkpoints:
         print(f"ERROR: no se encontraron checkpoints con best/")
         return 1
@@ -92,6 +98,7 @@ def main():
             split=args.split,
             epoch=args.epoch,
             k_values=K_VALUES_DEFAULT,
+            variant=args.variant,
         )
         out_path = FINETUNED_DIR / f"finetuned_results_{ckpt_name}.json"
         with open(out_path, "w", encoding="utf-8") as f:

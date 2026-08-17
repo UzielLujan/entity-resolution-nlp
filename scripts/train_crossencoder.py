@@ -6,9 +6,9 @@ scripts/run_train_biencoder.py.
 
 Uso:
     python scripts/train_crossencoder.py --model BETO \\
-        --pairs-train ~/Data/INER/tesis/splits/pairs_train.parquet \\
-        --pairs-val   ~/Data/INER/tesis/splits/pairs_val.parquet \\
-        --output      ~/Data/INER/models/checkpoints/<variante>_ce \\
+        --pairs-train ~/Data/INER/modeling/data/<variante>/pairs_train.parquet \\
+        --pairs-val   ~/Data/INER/modeling/data/<variante>/pairs_val.parquet \\
+        --output      ~/Data/INER/modeling/models/crossencoder/<variante>/<run> \\
         --epochs 3 --batch-size 16 --lr 2e-5
 """
 

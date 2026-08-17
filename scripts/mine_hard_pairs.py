@@ -23,7 +23,7 @@ Salida: 3 parquets (train, val, test) en el directorio del dataset, conteniendo 
 Uso:
     python scripts/mine_hard_pairs.py \\
         --checkpoint beto_mnrl_hpc_v2_<variante> \\
-        --dataset    ~/Data/INER/tesis/splits/<variante>_split.parquet \\
+        --dataset    ~/Data/INER/modeling/data/<variante>/split.parquet \\
         --top-k      20
 
     # Default: --top-k 20, escribe pairs_{train,val,test}.parquet en el dir del dataset.
@@ -40,6 +40,7 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from record_linkage.config import DEFAULT_VARIANT, SUPPORTED_VARIANTS
 from record_linkage.evaluation.biencoder_eval import (
     find_linkable_records,
     load_dataset_split,
@@ -168,6 +169,7 @@ def main():
                         help="Nombre del run en checkpoints/ (usa best/ por defecto)")
     parser.add_argument("--epoch", type=int, default=None,
                         help="Evaluar epoch_XX específica en lugar de best/")
+    parser.add_argument("--variant", choices=SUPPORTED_VARIANTS, default=DEFAULT_VARIANT)
     parser.add_argument("--dataset", required=True,
                         help="Ruta al dataset_split.parquet")
     parser.add_argument("--top-k", type=int, default=20,
@@ -190,7 +192,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Cargar BE
-    ckpt_path = resolve_checkpoint_path(args.checkpoint, args.epoch)
+    ckpt_path = resolve_checkpoint_path(args.checkpoint, args.epoch, args.variant)
     print(f"\nCargando BE: {ckpt_path}")
     t0 = time.time()
     model = build_biencoder(ckpt_path)

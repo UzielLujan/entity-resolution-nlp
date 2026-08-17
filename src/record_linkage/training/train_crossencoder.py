@@ -25,7 +25,12 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from transformers import get_linear_schedule_with_warmup
 
-from record_linkage.config import MODELS_DIR
+from record_linkage.config import (
+    DEFAULT_VARIANT,
+    PRETRAINED_MODELS_DIR,
+    SUPPORTED_VARIANTS,
+    crossencoder_run_dir,
+)
 from record_linkage.models.crossencoder import build_crossencoder
 from record_linkage.training.bce import make_bce_loss
 
@@ -155,6 +160,7 @@ def main():
     parser = argparse.ArgumentParser(description="Entrena el Cross-Encoder con BCE")
     parser.add_argument("--model",          default="BETO",
                         help="Nombre del modelo en models/pretrained/")
+    parser.add_argument("--variant",        choices=SUPPORTED_VARIANTS, default=DEFAULT_VARIANT)
     parser.add_argument("--dataset",        required=True,
                         help="Parquet con los registros (cols: record_id, text). "
                              "Típicamente dataset.parquet o dataset_split.parquet del perfil.")
@@ -185,8 +191,12 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"\nDispositivo: {device}")
 
-    model_path = MODELS_DIR / "pretrained" / args.model
-    output_dir = Path(args.output) if args.output else MODELS_DIR / "checkpoints" / f"{args.model}_ce"
+    model_path = PRETRAINED_MODELS_DIR / args.model
+    output_dir = (
+        Path(args.output)
+        if args.output
+        else crossencoder_run_dir(f"{args.model.lower()}_ce", args.variant)
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"\nCargando modelo: {model_path}")

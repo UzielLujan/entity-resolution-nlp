@@ -17,7 +17,7 @@ Uso:
     # 3D por default sobre split=test del ganador del 2 x 2
     python scripts/visualize_embeddings.py \\
         --checkpoint beto_mnrl_hpc_v2_tok_skipnull \\
-        --dataset ~/Data/INER/tesis/splits/tok_skipnull_split.parquet
+        --dataset ~/Data/INER/modeling/data/tok_skipnull/split.parquet
 
     # 2D
     python scripts/visualize_embeddings.py --checkpoint <run> --dataset <parquet> --dims 2
@@ -42,7 +42,7 @@ import plotly.express as px
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import FIGURES_DIR
+from record_linkage.config import DEFAULT_VARIANT, FIGURES_DIR, SUPPORTED_VARIANTS
 from record_linkage.evaluation.biencoder_eval import (
     load_dataset_split,
     resolve_checkpoint_path,
@@ -107,6 +107,7 @@ def main():
     parser = argparse.ArgumentParser(description="Visualiza el espacio métrico del Bi-Encoder con UMAP+Plotly")
     parser.add_argument("--checkpoint", required=True,
                         help="Nombre del run en checkpoints/ (usa best/ por defecto)")
+    parser.add_argument("--variant", choices=SUPPORTED_VARIANTS, default=DEFAULT_VARIANT)
     parser.add_argument("--dataset", required=True,
                         help="Ruta al dataset.parquet o dataset_split.parquet")
     parser.add_argument("--split", default="test",
@@ -145,7 +146,7 @@ def main():
     args = parser.parse_args()
 
     # === Carga modelo
-    ckpt_path = resolve_checkpoint_path(args.checkpoint, args.epoch)
+    ckpt_path = resolve_checkpoint_path(args.checkpoint, args.epoch, args.variant)
     print(f"\nCargando BE: {ckpt_path}")
     t0 = time.time()
     model = build_biencoder(ckpt_path)

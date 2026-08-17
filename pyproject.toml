@@ -37,7 +37,7 @@ dependencies = [
     "python-dotenv>=1.0",            # carga de .env para rutas
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "jupyter>=1.0",       # notebooks
     "ipykernel>=6.0",     # kernel de jupyter para el entorno

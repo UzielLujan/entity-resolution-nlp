@@ -24,7 +24,12 @@ import numpy as np
 import pandas as pd
 import torch
 
-from record_linkage.config import MODELS_DIR
+from record_linkage.config import (
+    BIENCODER_MODELS_DIR,
+    DEFAULT_VARIANT,
+    PRETRAINED_MODELS_DIR,
+    biencoder_run_dir,
+)
 from record_linkage.evaluation.metrics import candidate_pool_stats, compute_metrics_at_k
 from record_linkage.models.biencoder import build_biencoder, encode_texts
 
@@ -35,9 +40,13 @@ K_VALUES_DEFAULT = [1, 5, 10, 20, 50]
 # Helpers de filesystem / metadata
 # =============================================================================
 
-def resolve_checkpoint_path(checkpoint_name: str, epoch: Optional[int] = None) -> Path:
+def resolve_checkpoint_path(
+    checkpoint_name: str,
+    epoch: Optional[int] = None,
+    variant: str = DEFAULT_VARIANT,
+) -> Path:
     """Resuelve la ruta al checkpoint: best/ por defecto, epoch_XX si se especifica."""
-    run_dir = MODELS_DIR / "checkpoints" / checkpoint_name
+    run_dir = biencoder_run_dir(checkpoint_name, variant)
     if not run_dir.exists():
         raise FileNotFoundError(f"checkpoint no encontrado: {run_dir}")
 
@@ -62,18 +71,18 @@ def resolve_checkpoint_path(checkpoint_name: str, epoch: Optional[int] = None) -
     raise FileNotFoundError(f"no hay best/ ni epoch_XX/ en {run_dir}")
 
 
-def load_run_metadata(checkpoint_name: str) -> dict:
+def load_run_metadata(checkpoint_name: str, variant: str = DEFAULT_VARIANT) -> dict:
     """Lee training_history.json del run si existe (devuelve {} si no)."""
-    hist_path = MODELS_DIR / "checkpoints" / checkpoint_name / "training_history.json"
+    hist_path = biencoder_run_dir(checkpoint_name, variant) / "training_history.json"
     if hist_path.exists():
         with open(hist_path) as f:
             return json.load(f)
     return {}
 
 
-def list_available_checkpoints() -> list[str]:
+def list_available_checkpoints(variant: str = DEFAULT_VARIANT) -> list[str]:
     """Lista de runs en checkpoints/ que tienen best/ disponible."""
-    ckpt_root = MODELS_DIR / "checkpoints"
+    ckpt_root = BIENCODER_MODELS_DIR / variant
     if not ckpt_root.exists():
         return []
     return sorted(
@@ -197,14 +206,15 @@ def evaluate_finetuned_checkpoint(
     split: str = "test",
     epoch: Optional[int] = None,
     k_values: list = K_VALUES_DEFAULT,
+    variant: str = DEFAULT_VARIANT,
 ) -> dict:
     """Evalúa un checkpoint fine-tuneado con MNRL sobre el split indicado."""
     print(f"\n{'='*60}\nEvaluando: {checkpoint_name}\n{'='*60}")
 
-    ckpt_path = resolve_checkpoint_path(checkpoint_name, epoch)
+    ckpt_path = resolve_checkpoint_path(checkpoint_name, epoch, variant)
     print(f"  Checkpoint: {ckpt_path}")
 
-    metadata = load_run_metadata(checkpoint_name)
+    metadata = load_run_metadata(checkpoint_name, variant)
     args_meta = metadata.get("args", {})
     best_epoch = metadata.get("best_epoch")
     epoch_label = f"epoch_{epoch:02d}" if epoch is not None else f"best (ep{best_epoch})"
@@ -261,7 +271,7 @@ def evaluate_zeroshot_model(
     """
     print(f"\n{'='*60}\nEvaluando zero-shot: {model_name}\n{'='*60}")
 
-    model_path = MODELS_DIR / "pretrained" / model_name
+    model_path = PRETRAINED_MODELS_DIR / model_name
     if not model_path.exists():
         print(f"  ERROR: modelo no encontrado en {model_path}")
         print(f"  Ejecuta primero: python scripts/download_model.py --name {model_name} --model <hub-id>")

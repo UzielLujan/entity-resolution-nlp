@@ -25,7 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import MODELS_DIR
+from record_linkage.config import PRETRAINED_MODELS_DIR
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.models import Pooling, Transformer
 
@@ -81,7 +81,7 @@ def download_model(model_id: str, output_name: str) -> Path:
     Cada modelo conserva su tokenizador propio. El registro es idempotente: si
     el modelo local ya contiene los tokens, no se vuelven a anadir.
     """
-    output_dir = MODELS_DIR / "pretrained" / output_name
+    output_dir = PRETRAINED_MODELS_DIR / output_name
 
     if output_dir.exists():
         print(f"Cargando desde disco: {output_dir}")

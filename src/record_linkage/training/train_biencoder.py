@@ -4,8 +4,8 @@ Etapa 1 — Bi-Encoder con Multiple Negatives Ranking Loss (MNRL).
 Uso (smoke test local, 1 época):
     python scripts/run_train_biencoder.py \
         --model BETO \
-        --dataset ~/Data/INER/tesis/splits/tok_skipnull_split.parquet \
-        --output ~/Data/INER/models/checkpoints/beto_mnrl_run03 \
+        --dataset ~/Data/INER/modeling/data/tok_skipnull/split.parquet \
+        --output ~/Data/INER/modeling/models/biencoder/tok_skipnull/beto_mnrl_run03 \
         --epochs 1 --batch-size 8 --n-aug 0 --max-seq-length 384
 
 Uso en HPC (ajustar batch-size y epochs según recursos):
@@ -29,7 +29,14 @@ from torch.utils.data import DataLoader, Dataset
 import warnings
 warnings.filterwarnings("ignore", message="Detected call of.*lr_scheduler")
 
-from record_linkage.config import MODELS_DIR, SPLITS_DIR, TRAINING_DIR
+from record_linkage.config import (
+    DEFAULT_VARIANT,
+    DIAGNOSTICS_DIR,
+    PRETRAINED_MODELS_DIR,
+    SUPPORTED_VARIANTS,
+    biencoder_run_dir,
+    split_path,
+)
 from record_linkage.data.augmentation import AugmentationConfig, augment
 from record_linkage.models.biencoder import build_biencoder
 from record_linkage.training.mnrl import dump_mnrl_batch
@@ -253,6 +260,7 @@ def eval_loss(st_model, df_val: pd.DataFrame, batch_size: int, temperature: floa
 def main():
     parser = argparse.ArgumentParser(description="Entrena Bi-Encoder con MNRL")
     parser.add_argument("--model",          default="BETO")
+    parser.add_argument("--variant",        choices=SUPPORTED_VARIANTS, default=DEFAULT_VARIANT)
     parser.add_argument("--dataset",        default=None)
     parser.add_argument("--output",         default=None)
     parser.add_argument("--epochs",         type=int,   default=2)
@@ -267,7 +275,7 @@ def main():
                         help="Longitud máxima de secuencia (default: 384 para local, 512 en HPC)")
     parser.add_argument("--seed",           type=int,   default=42)
     parser.add_argument("--viz",            action="store_true",
-                        help="Guarda textos y matrices MNRL de 3 batches en outputs/training/<run>/viz/")
+                        help="Guarda textos y matrices MNRL en outputs/diagnostics/mnrl_batches/<run>/")
     parser.add_argument("--patience",      type=int, default=3,
                         help="Épocas sin mejora en val_loss antes de detener (0 = desactivado)")
     parser.add_argument("--only-best",     action="store_true",
@@ -282,12 +290,16 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"\nDispositivo: {device}")
 
-    model_path   = MODELS_DIR / "pretrained" / args.model
-    parquet_path = Path(args.dataset) if args.dataset else SPLITS_DIR / "tok_skipnull_split.parquet"
-    output_dir   = Path(args.output)  if args.output  else MODELS_DIR / "checkpoints" / f"{args.model}_mnrl"
+    model_path = PRETRAINED_MODELS_DIR / args.model
+    parquet_path = Path(args.dataset) if args.dataset else split_path(args.variant)
+    output_dir = (
+        Path(args.output)
+        if args.output
+        else biencoder_run_dir(f"{args.model.lower()}_mnrl", args.variant)
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    viz_dir = TRAINING_DIR / output_dir.name / "viz" if args.viz else None
+    viz_dir = DIAGNOSTICS_DIR / "mnrl_batches" / output_dir.name if args.viz else None
 
     print(f"\nCargando modelo: {model_path}")
     st_model = build_biencoder(model_path)

@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import CONSULTORIA_OUTPUT_DIR, EVALUATION_DIR
+from record_linkage.config import EVALUATION_DIR, PREPARED_DATA_DIR
 from record_linkage.evaluation.biencoder_eval import (
     K_VALUES_DEFAULT,
     evaluate_zeroshot_model,
@@ -51,7 +51,7 @@ def main():
 
     dataset_path = (
         Path(args.dataset) if args.dataset
-        else CONSULTORIA_OUTPUT_DIR / "notok_skipnull" / "dataset.parquet"
+        else PREPARED_DATA_DIR / "notok_skipnull" / "dataset.parquet"
     )
     if not dataset_path.exists():
         print(f"ERROR: dataset no encontrado en {dataset_path}")
@@ -60,7 +60,8 @@ def main():
 
     models_to_eval = KNOWN_MODELS if args.all else args.models
 
-    EVALUATION_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir = EVALUATION_DIR / "biencoder" / "zeroshot"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     all_model_results = {}
     for model_name in models_to_eval:
@@ -77,7 +78,7 @@ def main():
         return 1
 
     suffix = Path(dataset_path).parent.name
-    output_path = EVALUATION_DIR / f"zeroshot_results_{suffix}.json"
+    output_path = output_dir / f"zeroshot_results_{suffix}.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(all_model_results, f, ensure_ascii=False, indent=2)
     print(f"\n✓ Resultados guardados en {output_path}")

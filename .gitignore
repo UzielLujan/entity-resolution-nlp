@@ -1,5 +1,6 @@
 # entorno
 .env
+.venv/
 __pycache__/
 *.pyc
 *.pyo
@@ -27,12 +28,13 @@ dist/
 
 # Claude context
 CLAUDE.md
+.claude
 
-# docs anexos
+# documentacion
 docs/Anexos/
 docs/presentation/
 
-# bitácora de memoria
+# bitácora de trabajo
 MEMORY.md
 
 # logs

@@ -82,7 +82,7 @@ entity-resolution-nlp/
 │   ├── show_pair.py                 # Inspección on-demand de un par desde *_clean.csv
 │   ├── report_linking_numbers.py    # Reporte de cifras de vinculación para el manuscrito
 │   ├── sanity_check_paraphrase.py   # Smoke test del baseline paraphrase-multilingual
-│   ├── build_consolidated_json.py   # Genera consolidated_entities_v2.json (entregable INER)
+│   ├── build_consolidated_json.py   # Genera consolidated_entities.json (entregable INER)
 │   └── build_data_dictionary.py     # Genera Diccionario_Final_INER.csv (entregable INER)
 │
 ├── notebooks/                       # EDAs, análisis de duplicados, diccionarios hardcodeados
@@ -96,22 +96,20 @@ entity-resolution-nlp/
 ### 1. Entorno
 
 ```bash
-micromamba create -n tesis python=3.11 -c conda-forge -y
-micromamba activate tesis
-pip install uv
-uv pip install -e .
+cp .env.example .env
+# Configure INER_DATA_ROOT en .env.
+uv sync
+uv run python -m record_linkage.config
 ```
 
-Las dependencias y la configuración del paquete `record_linkage` viven en `pyproject.toml` como único archivo de entorno: `uv` resuelve `[project.dependencies]` para el entorno base y `[project.optional-dependencies].dev` para herramientas (jupyter, pytest, ruff).
-
-El flag `-e` instala `record_linkage` en modo editable, los cambios en `src/` se reflejan sin reinstalar. Las dependencias de desarrollo se instalan con `uv pip install -e ".[dev]"`.
+`uv sync` crea `.venv`, instala el paquete en modo editable y sincroniza las dependencias base y el grupo de desarrollo desde `uv.lock`. Use `uv run` para ejecutar comandos sin activar manualmente el entorno.
 
 ### 2. Descargar modelos
 
 Los modelos se descargan localmente como SentenceTransformer con tokens especiales ya registrados, para poder transferirlos al cluster de cómputo sin acceso a internet.
 
 ```bash
-python scripts/download_model.py --all
+uv run python scripts/download_model.py --all
 ```
 
 Modelos disponibles: `BETO`, `RoBERTa-biomedical`, `paraphrase-multilingual`.
@@ -179,14 +177,14 @@ sbatch train_biencoder_beto.sh
 ### 8. Evaluación del Bi-Encoder fine-tuneado
 
 ```bash
-python scripts/evaluate_finetuned.py --run beto_mnrl_hpc_run_e
+python scripts/evaluate_finetuned.py --checkpoint beto_mnrl_hpc_v2_tok_skipnull
 sbatch eval_biencoder.sh
 ```
 
 ### 9. Hard Negative Mining
 
 ```bash
-python scripts/mine_hard_pairs.py --run beto_mnrl_hpc_run_e --top-k 20
+python scripts/mine_hard_pairs.py --checkpoint beto_mnrl_hpc_v2_tok_skipnull --top-k 20
 ```
 
 Emite `pairs_hard.parquet` con triples (positivos + hard_positives + hard_negatives) por split, listos para entrenar el Cross-Encoder.
@@ -194,6 +192,8 @@ Emite `pairs_hard.parquet` con triples (positivos + hard_positives + hard_negati
 ### 10. Entrenamiento y evaluación del Cross-Encoder
 
 ```bash
+python scripts/train_crossencoder.py
+
 sbatch train_crossencoder_beto.sh
 sbatch eval_crossencoder.sh
 ```
@@ -264,12 +264,12 @@ Los tokens `[BLK_ID]`, `[BLK_CLIN]`, `[BLK_GEO]`, `[BLK_ADMIN]`, `[BLK_SOCIO]`, 
 - [x] Pipeline de entrenamiento MNRL (warm init, LR diferencial por capa, fp16, early stopping)
 - [x] Evaluación zero-shot y fine-tuneada (Hit@K, Recall@K, RecallNorm@K, Precision@K, MRR, Δsep)
 - [x] Experimento de serialización 2×2 (tokens × nulos) — ganador `tok_skipnull` (val=1.1029, Δsep=11.28)
-- [x] Modelo final Bi-Encoder — BETO `lr=2e-5`, `temp=0.07`, val_loss=1.0224
+- [x] Modelo final Bi-Encoder — BETO sobre `tok_skipnull`
 - [x] Hard Negative Mining sobre el BE fine-tuneado (`mine_hard_pairs.py`)
 - [x] Cross-Encoder DITTO entrenado y evaluado (BCE + pos_weight=8) — **F1=1.0000** sobre test (16,350 pares)
 - [x] Calibración del CE + incertidumbre por vínculo (Vía A — temperature scaling + entropía)
 - [x] Visualización UMAP 3D del espacio métrico (`visualize_embeddings.py`)
-- [x] Eje consultoría INER cerrado — `consolidated_entities_v2.json` + `Diccionario_Final_INER.csv`
+- [x] Eje consultoría INER cerrado — `consolidated_entities.json` + `Diccionario_Final_INER.csv`
 - [x] Presentación de avance (mayo 2026) — Beamer XeLaTeX, 27 slides
 - [ ] Rediseño de augmentación — operadores actuales no simulan variación real entre CSVs del INER
 - [ ] Blocking semántico BE+ANN (FAISS) — sustituye al filtro por expediente en producción

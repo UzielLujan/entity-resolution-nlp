@@ -17,7 +17,7 @@ Uso:
         --checkpoint beto_mnrl_hpc_v2_tok_skipnull \\
         --dataset ~/Data/INER/processed/default/output/tok_skipnull/dataset.parquet
 
-    # El output default es <dir del dataset>/embeddings.parquet
+    # El output default es $INER_DATA_ROOT/modeling/embeddings/<variant>/embeddings.parquet
     python scripts/export_embeddings.py --checkpoint <run> --dataset <parquet> \\
         --output /ruta/explicita/embeddings.parquet
 """
@@ -35,6 +35,7 @@ import pyarrow.parquet as pq
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from record_linkage.config import embeddings_path
 from record_linkage.evaluation.biencoder_eval import resolve_checkpoint_path
 from record_linkage.models.biencoder import build_biencoder, encode_texts
 
@@ -48,7 +49,9 @@ def parse_args():
     p.add_argument("--dataset", required=True, type=Path,
                    help="Ruta al dataset.parquet completo (record_id, source_db, text, entity_id).")
     p.add_argument("--output", type=Path, default=None,
-                   help="Ruta del parquet de salida (default: <dir del dataset>/embeddings.parquet).")
+                   help="Ruta de salida (default: modeling/embeddings/<variant>/embeddings.parquet).")
+    p.add_argument("--variant", default=None,
+                   help="Variante del dataset (default: directorio que contiene el parquet).")
     p.add_argument("--epoch", type=int, default=None,
                    help="Época específica del checkpoint (default: best/).")
     p.add_argument("--batch-size", type=int, default=64)
@@ -61,9 +64,16 @@ def main():
     dataset_path = args.dataset.expanduser()
     if not dataset_path.exists():
         raise FileNotFoundError(f"Dataset no encontrado: {dataset_path}")
-    output_path = (args.output or dataset_path.parent / "embeddings.parquet").expanduser()
+    variant = args.variant or dataset_path.parent.name
+    output_path = (
+        args.output.expanduser()
+        if args.output
+        else embeddings_path(variant)
+    )
 
-    ckpt_path = resolve_checkpoint_path(args.checkpoint, epoch=args.epoch)
+    ckpt_path = resolve_checkpoint_path(
+        args.checkpoint, epoch=args.epoch, variant=variant
+    )
     print(f"Checkpoint: {ckpt_path}")
     print(f"Dataset:    {dataset_path}")
     print(f"Output:     {output_path}")
@@ -89,6 +99,7 @@ def main():
         "checkpoint": args.checkpoint,
         "checkpoint_path": str(ckpt_path),
         "dataset": str(dataset_path),
+        "variant": variant,
         "n_records": len(out_df),
         "dim": int(embeddings.shape[1]),
         "normalized": True,

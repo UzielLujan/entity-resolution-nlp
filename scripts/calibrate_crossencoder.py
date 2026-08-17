@@ -7,10 +7,10 @@ Procedimiento POST-HOC sobre el CE ya entrenado (NO re-entrena):
 
 Uso:
     python scripts/calibrate_crossencoder.py \\
-        --checkpoint ~/Data/INER/models/checkpoints/beto_bce_hpc_v2_tok_skipnull/best \\
+        --checkpoint ~/Data/INER/modeling/models/crossencoder/tok_skipnull/<run>/best \\
         --dataset    ~/Data/INER/processed/default/output/tok_skipnull/dataset.parquet \\
-        --val-pairs  ~/Data/INER/tesis/splits/pairs_val.parquet \\
-        --test-pairs ~/Data/INER/tesis/splits/pairs_test.parquet
+        --val-pairs  ~/Data/INER/modeling/data/tok_skipnull/pairs_val.parquet \\
+        --test-pairs ~/Data/INER/modeling/data/tok_skipnull/pairs_test.parquet
 """
 
 import argparse
@@ -56,7 +56,7 @@ def main():
         val_pairs_path=val_pairs_path,
         test_pairs_path=test_pairs_path,
         dataset_path=dataset_path,
-        output_dir=EVALUATION_DIR / "calibration",
+        output_dir=EVALUATION_DIR / "crossencoder" / "calibration",
         tau_dec=args.tau_dec,
         batch_size=args.batch_size,
         max_length=args.max_seq_length,
