@@ -76,6 +76,14 @@ def split_dataset(
 
     df["split"] = df["entity_id"].map(split_map)
 
+    n_unassigned = int(df["split"].isna().sum())
+    if n_unassigned:
+        raise ValueError(f"{n_unassigned} registros no recibieron split")
+
+    splits_per_entity = df.groupby("entity_id", dropna=False)["split"].nunique()
+    if not splits_per_entity.eq(1).all():
+        raise ValueError("Se detectaron entity_id asignados a más de un split")
+
     # Guardar
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -107,17 +115,17 @@ def _print_stats(stats: dict, train_ratio: float, val_ratio: float, test_ratio: 
     print(f"\n{'='*60}")
     print(f"  Split del dataset  ({train_ratio:.0%} / {val_ratio:.0%} / {test_ratio:.0%})")
     print(f"{'='*60}")
-    header = f"  {'':25} {'train':>8} {'val':>8} {'test':>8}"
+    header = f"  {'':30} {'train':>8} {'val':>8} {'test':>8}"
     print(header)
-    print(f"  {'-'*49}")
+    print(f"  {'-'*54}")
     rows = [
         ("Entidades vinculables",  "entities_linkable"),
         ("Entidades singleton",    "entities_singleton"),
         ("Entidades total",        "entities_total"),
         ("Registros",              "records"),
-        ("Pares naturales cross-db","natural_pairs"),
+        ("Pares combinaciones cross-db", "natural_pairs"),
     ]
     for label, key in rows:
         vals = [stats[s][key] for s in ("train", "val", "test")]
-        print(f"  {label:25} {vals[0]:>8,} {vals[1]:>8,} {vals[2]:>8,}")
+        print(f"  {label:30} {vals[0]:>8,} {vals[1]:>8,} {vals[2]:>8,}")
     print(f"{'='*60}\n")
