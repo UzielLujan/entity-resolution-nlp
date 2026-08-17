@@ -142,15 +142,17 @@ sbatch eval_biencoder.sh "$BE_RUN" test "$SPLIT"
 ```
 
 ## 9. Hard Negative Mining
-Use un directorio por variante para no sobreescribir pares de otros experimentos:
+Por defecto, los pares se escriben en el directorio canónico de la variante:
 
 ```bash
 python scripts/mine_hard_pairs.py --checkpoint "$BE_RUN" --variant "$VARIANT" \
   --dataset "$SPLIT" \
-  --top-k 20 --output-dir "$PAIRS_DIR"
+  --top-k 20
 ```
 
-Produce `pairs_train.parquet`, `pairs_val.parquet` y `pairs_test.parquet`.
+Produce `pairs_train.parquet`, `pairs_val.parquet` y `pairs_test.parquet` en
+`$INER_DATA_ROOT/modeling/data/$VARIANT`. `--output-dir` permite sobrescribir esta ruta
+para ejecuciones experimentales.
 
 ## 10. Entrenamiento del Cross-Encoder
 ```bash

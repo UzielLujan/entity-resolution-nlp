@@ -1,18 +1,18 @@
 """Hard Negative Mining para el Cross-Encoder.
 
-Toma un Bi-Encoder fine-tuneado y un dataset_split.parquet, encoda todos los registros
+Toma un Bi-Encoder fine-tuneado y un split.parquet, encoda todos los registros
 linkable, y para cada registro identifica:
 
   • POSITIVE (label=1):      par cross-DB con mismo entity_id, BE lo puso en top-K. "Match obvio".
   • HARD_POSITIVE (label=1): par cross-DB con mismo entity_id, BE NO lo puso en top-K. BE falló.
   • HARD_NEGATIVE (label=0): par cross-DB con entity_id distinto, BE lo puso en top-K. BE confundió.
 
-Los easy negatives (mismo entity_id distinto, BE los filtra correctamente) NO se incluyen —
-nunca llegan al CE en producción.
+Los easy negatives (entity_id distinto, fuera del top-K) NO se incluyen porque nunca
+llegan al CE en producción.
 
-Salida: 3 parquets (train, val, test) en el directorio del dataset, conteniendo SOLO los
-índices del grafo (no el texto). El texto vive en `dataset.parquet` y se hace lookup vía
-`record_id` en `train_crossencoder.py` y `evaluate_crossencoder.py`.
+Salida: 3 parquets (train, val, test) en `modeling/data/<variante>/`, conteniendo SOLO
+los índices del grafo (no el texto). El texto vive en `split.parquet` y se hace lookup
+vía `record_id` en `train_crossencoder.py` y `evaluate_crossencoder.py`.
 
     pairs_{train,val,test}.parquet
     ├── record_id_a, record_id_b
@@ -22,11 +22,12 @@ Salida: 3 parquets (train, val, test) en el directorio del dataset, conteniendo 
 
 Uso:
     python scripts/mine_hard_pairs.py \\
-        --checkpoint beto_mnrl_hpc_v2_<variante> \\
+        --checkpoint beto_mnrl \\
+        --variant    <variante> \\
         --dataset    ~/Data/INER/modeling/data/<variante>/split.parquet \\
         --top-k      20
 
-    # Default: --top-k 20, escribe pairs_{train,val,test}.parquet en el dir del dataset.
+    # Default: --top-k 20, escribe en modeling/data/<variante>/.
 """
 
 import argparse
@@ -40,7 +41,7 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import DEFAULT_VARIANT, SUPPORTED_VARIANTS
+from record_linkage.config import DEFAULT_VARIANT, SUPPORTED_VARIANTS, pairs_path
 from record_linkage.evaluation.biencoder_eval import (
     find_linkable_records,
     load_dataset_split,
@@ -166,19 +167,19 @@ def mine_pairs_for_split(
 def main():
     parser = argparse.ArgumentParser(description="Hard Negative Mining sobre el Bi-Encoder")
     parser.add_argument("--checkpoint", required=True,
-                        help="Nombre del run en checkpoints/ (usa best/ por defecto)")
+                        help="Nombre del run Bi-Encoder (usa best/ por defecto)")
     parser.add_argument("--epoch", type=int, default=None,
                         help="Evaluar epoch_XX específica en lugar de best/")
     parser.add_argument("--variant", choices=SUPPORTED_VARIANTS, default=DEFAULT_VARIANT)
     parser.add_argument("--dataset", required=True,
-                        help="Ruta al dataset_split.parquet")
+                        help="Ruta al split.parquet")
     parser.add_argument("--top-k", type=int, default=20,
                         help="Top-K vecinos por query para definir hard negatives (default: 20)")
     parser.add_argument("--max-easy-positives", type=int, default=0,
                         help="Si >0, submuestrea los easy positives a este tope por split. "
                              "0 = mantener todos. Útil cuando dominan vs hard cases.")
     parser.add_argument("--output-dir", type=str, default=None,
-                        help="Directorio de salida (default: mismo dir del dataset)")
+                        help="Override del directorio de salida canónico por variante")
     parser.add_argument("--max-seq-length", type=int, default=512)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--seed", type=int, default=42)
@@ -188,8 +189,9 @@ def main():
     if not dataset_path.exists():
         print(f"ERROR: dataset no encontrado: {dataset_path}")
         return 1
-    output_dir = Path(args.output_dir) if args.output_dir else dataset_path.parent
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = Path(args.output_dir) if args.output_dir else None
+    if output_dir:
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     # Cargar BE
     ckpt_path = resolve_checkpoint_path(args.checkpoint, args.epoch, args.variant)
@@ -230,7 +232,12 @@ def main():
             seed=args.seed,
         )
 
-        out_path = output_dir / f"pairs_{split}.parquet"
+        out_path = (
+            output_dir / f"pairs_{split}.parquet"
+            if output_dir
+            else pairs_path(split, args.variant)
+        )
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         df_pairs.to_parquet(out_path, engine="pyarrow", index=False, compression="snappy")
 
         type_counts = df_pairs["type"].value_counts().to_dict()
