@@ -51,7 +51,8 @@ EMBEDDINGS="$INER_DATA_ROOT/modeling/embeddings/$VARIANT/embeddings.parquet"
 `.env` no se versiona. `.env.example` documenta la única variable requerida y la ubicación mínima de `dataset.parquet`. Valide la configuración antes de ejecutar el pipeline:
 
 ```bash
-uv run python -m record_linkage.config
+source .venv/bin/activate
+python -m record_linkage.config
 ```
 
 | Artefacto | Ruta |
@@ -87,15 +88,16 @@ Los siete `.sh` de la raíz son wrappers exclusivos del clúster: localizan el r
 ## 4. Preparación del entorno y modelos
 ```bash
 uv sync
-uv run python scripts/download_model.py --all
-uv run python scripts/measure_token_distribution.py --model BETO --dataset "$DATASET"
+source .venv/bin/activate
+python scripts/download_model.py --all
+python scripts/measure_token_distribution.py --model BETO --dataset "$DATASET"
 ```
 
 Los modelos quedan en `$INER_DATA_ROOT/modeling/models/pretrained/`; sincronice ese directorio antes de trabajar en nodos sin internet. Para una descarga individual use `download_model.py --model <HUGGINGFACE_ID> --name <NOMBRE_LOCAL>`.
 
 ## 5. Partición por entidad
 ```bash
-uv run python scripts/run_splitting.py --variant "$VARIANT"
+python scripts/run_splitting.py --variant "$VARIANT"
 ```
 
 Produce `$SPLIT` con columna `split`. Con `--dataset` puede indicarse otro parquet, pero la salida seguirá nombrándose a partir de `--variant`.
@@ -104,9 +106,9 @@ Produce `$SPLIT` con columna `split`. Con `--dataset` puede indicarse otro parqu
 La evaluación zero-shot usa normalmente la variante sin tokens y sin nulos:
 
 ```bash
-uv run python scripts/evaluate_zeroshot.py --all \
+python scripts/evaluate_zeroshot.py --all \
   --dataset "$INER_DATA_ROOT/processed/default/output/notok_skipnull/dataset.parquet"
-uv run python scripts/sanity_check_paraphrase.py
+python scripts/sanity_check_paraphrase.py
 ```
 
 Los resultados se escriben en `modeling/outputs/evaluation/biencoder/zeroshot/`.
@@ -115,7 +117,7 @@ Los resultados se escriben en `modeling/outputs/evaluation/biencoder/zeroshot/`.
 Smoke test local:
 
 ```bash
-uv run python scripts/run_train_biencoder.py --model BETO --variant "$VARIANT" --dataset "$SPLIT" \
+python scripts/run_train_biencoder.py --model BETO --variant "$VARIANT" --dataset "$SPLIT" \
   --output "$INER_DATA_ROOT/modeling/models/biencoder/$VARIANT/${BE_RUN}_smoke" \
   --epochs 1 --batch-size 8 --n-aug 0 --max-seq-length 384
 ```
@@ -131,10 +133,10 @@ Para RoBERTa use `train_biencoder_roberta.sh` con los mismos argumentos. Los che
 
 ## 8. Evaluación y visualización del Bi-Encoder
 ```bash
-uv run python scripts/evaluate_finetuned.py --checkpoint "$BE_RUN" --variant "$VARIANT" \
+python scripts/evaluate_finetuned.py --checkpoint "$BE_RUN" --variant "$VARIANT" \
   --dataset "$SPLIT" --split test
-uv run python scripts/plot_training_curves.py --checkpoint "$BE_RUN" --variant "$VARIANT"
-uv run python scripts/visualize_embeddings.py --checkpoint "$BE_RUN" --variant "$VARIANT" \
+python scripts/plot_training_curves.py --checkpoint "$BE_RUN" --variant "$VARIANT"
+python scripts/visualize_embeddings.py --checkpoint "$BE_RUN" --variant "$VARIANT" \
   --dataset "$SPLIT" --split test --dims 3
 sbatch eval_biencoder.sh "$BE_RUN" test "$SPLIT"
 ```
@@ -143,7 +145,7 @@ sbatch eval_biencoder.sh "$BE_RUN" test "$SPLIT"
 Use un directorio por variante para no sobreescribir pares de otros experimentos:
 
 ```bash
-uv run python scripts/mine_hard_pairs.py --checkpoint "$BE_RUN" --variant "$VARIANT" \
+python scripts/mine_hard_pairs.py --checkpoint "$BE_RUN" --variant "$VARIANT" \
   --dataset "$SPLIT" \
   --top-k 20 --output-dir "$PAIRS_DIR"
 ```
@@ -152,7 +154,7 @@ Produce `pairs_train.parquet`, `pairs_val.parquet` y `pairs_test.parquet`.
 
 ## 10. Entrenamiento del Cross-Encoder
 ```bash
-uv run python scripts/train_crossencoder.py --model BETO --variant "$VARIANT" --dataset "$SPLIT" \
+python scripts/train_crossencoder.py --model BETO --variant "$VARIANT" --dataset "$SPLIT" \
   --pairs-train "$PAIRS_DIR/pairs_train.parquet" \
   --pairs-val "$PAIRS_DIR/pairs_val.parquet" \
   --output "$INER_DATA_ROOT/modeling/models/crossencoder/$VARIANT/$CE_RUN" \
@@ -167,12 +169,12 @@ Busque el umbral sobre validación, asígnelo a `THRESHOLD` y después evalúe t
 
 ```bash
 CE_BEST="$INER_DATA_ROOT/modeling/models/crossencoder/$VARIANT/$CE_RUN/best"
-uv run python scripts/evaluate_crossencoder.py --checkpoint "$CE_BEST" --dataset "$SPLIT" \
+python scripts/evaluate_crossencoder.py --checkpoint "$CE_BEST" --dataset "$SPLIT" \
   --pairs "$PAIRS_DIR/pairs_val.parquet" --find-threshold
 THRESHOLD=0.00  # Sustituir por el valor obtenido en validación
-uv run python scripts/evaluate_crossencoder.py --checkpoint "$CE_BEST" --dataset "$SPLIT" \
+python scripts/evaluate_crossencoder.py --checkpoint "$CE_BEST" --dataset "$SPLIT" \
   --pairs "$PAIRS_DIR/pairs_test.parquet" --threshold "$THRESHOLD"
-uv run python scripts/calibrate_crossencoder.py --checkpoint "$CE_BEST" --dataset "$SPLIT" \
+python scripts/calibrate_crossencoder.py --checkpoint "$CE_BEST" --dataset "$SPLIT" \
   --val-pairs "$PAIRS_DIR/pairs_val.parquet" \
   --test-pairs "$PAIRS_DIR/pairs_test.parquet"
 ```
@@ -183,7 +185,7 @@ Wrappers disponibles: `eval_crossencoder.sh` y `calibrate_crossencoder.sh`.
 La exportación usa el dataset completo, no el split. La variante se infiere del directorio que contiene el dataset y la salida queda fuera del directorio de entrada:
 
 ```bash
-uv run python scripts/export_embeddings.py --checkpoint "$BE_RUN" --variant "$VARIANT" \
+python scripts/export_embeddings.py --checkpoint "$BE_RUN" --variant "$VARIANT" \
   --dataset "$DATASET"
 sbatch export_embeddings.sh "$BE_RUN" "$DATASET" "$VARIANT"
 ```

@@ -13,13 +13,11 @@ dependencies = [
     "torch>=2.0",                    # base de todo, redes neuronales
     "transformers>=4.35",            # BERT, RoBERTa, BETO — Etapas 1 y 2
     "sentence-transformers>=2.2",    # SBERT, arquitectura siamesa — Etapa 1
-    "tokenizers>=0.15",              # tokenización rápida, dependencia de transformers
 
     # --- Datos ---
     "pandas>=2.0",                   # manipulación de CSVs y DataFrames
     "pyarrow>=14.0",                 # lectura/escritura de .parquet
     "numpy>=1.24",                   # operaciones matriciales
-    "rapidfuzz>=3.0",                # métricas clásicas: Jaro-Winkler, Levenshtein (etiquetado v2)
 
     # --- Búsqueda vectorial ---
     # "faiss-cpu>=1.7",                # indexación ANN para inferencia
@@ -27,6 +25,7 @@ dependencies = [
 
     # --- Aprendizaje contrastivo ---
     "scikit-learn>=1.3",             # métricas de evaluación (F1, precision, recall)
+    "scipy>=1.11",                   # optimización escalar para calibración por temperatura
 
     # --- Visualización ---
     "matplotlib>=3.7",               # curvas de loss y figuras estáticas (PNG/SVG)
@@ -37,10 +36,12 @@ dependencies = [
     "python-dotenv>=1.0",            # carga de .env para rutas
 ]
 
-[dependency-groups]
-dev = [
+[project.optional-dependencies]
+notebook = [
     "jupyter>=1.0",       # notebooks
     "ipykernel>=6.0",     # kernel de jupyter para el entorno
+]
+dev = [
     "pytest>=7.0",        # unit tests
     "ruff>=0.1",          # linter y formatter moderno (reemplaza flake8 + black)
 ]

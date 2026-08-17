@@ -6,7 +6,7 @@ Sistema de ligado de registros (Record Linkage) basado en aprendizaje profundo y
 
 ## Contexto
 
-El INER cuenta con tres bases de datos independientes de pacientes COVID-19 que no comparten una llave de identificación 100% confiable. Este proyecto construye un sistema moderno para vincularlas a nivel semántico usando modelos de lenguaje pre-entrenados, sin depender de coincidencias exactas de campos. La arquitectura es un pipeline híbrido **Retrieve & Rerank**: Bi-Encoder (SBERT + MNRL) en Etapa 1 y Cross-Encoder (DITTO + BCE) en Etapa 2.
+El INER cuenta con tres bases de datos independientes de pacientes COVID-19 que no comparten una llave de identificación 100% confiable. Este proyecto construye un sistema moderno para vincularlas a nivel semántico usando modelos de lenguaje pre-entrenados, sin depender de llaves de identificación ni coincidencias exactas de campos. La arquitectura es un pipeline híbrido **Retrieve & Rerank**: Bi-Encoder (SBERT + MNRL) en Etapa 1 y Cross-Encoder (DITTO + BCE) en Etapa 2.
 
 | CSV | Registros | Contenido |
 |-----|-----------|-----------|
@@ -14,7 +14,7 @@ El INER cuenta con tres bases de datos independientes de pacientes COVID-19 que 
 | Costos y Económico | 4,632 | costos de atención, datos socioeconómicos |
 | Trabajo Social | 14,796 | datos demográficos, familia, situación social |
 
-Ground truth final del dataset v2 (tras revisión manual de los pares):
+Ground truth del dataset:
 **15,283 entidades únicas** y **11,447 pares cross-DB confirmados** = 9,855 por llave exacta + 1,118 por métrica clásica + 493 hard positives + 21 hard negatives marcados manualmente.
 
 ---
@@ -93,23 +93,35 @@ entity-resolution-nlp/
 
 ## Inicio rápido
 
+La raíz configurada en `.env` debe contener al menos una variante del dataset etiquetado en `processed/default/output/<variant>/dataset.parquet`.
+
 ### 1. Entorno
 
 ```bash
 cp .env.example .env
 # Configure INER_DATA_ROOT en .env.
+
 uv sync
-uv run python -m record_linkage.config
+source .venv/bin/activate
+python -m record_linkage.config
 ```
 
-`uv sync` crea `.venv`, instala el paquete en modo editable y sincroniza las dependencias base y el grupo de desarrollo desde `uv.lock`. Use `uv run` para ejecutar comandos sin activar manualmente el entorno.
+`uv sync` crea `.venv`, instala el paquete en modo editable y sincroniza las dependencias base desde `uv.lock`. Después de activar el entorno, los comandos se ejecutan con `python` normalmente.
+
+Dependencias opcionales:
+
+```bash
+uv sync --extra notebook   # Jupyter e ipykernel
+uv sync --extra dev        # pytest y Ruff
+uv sync --all-extras       # Todos los extras
+```
 
 ### 2. Descargar modelos
 
 Los modelos se descargan localmente como SentenceTransformer con tokens especiales ya registrados, para poder transferirlos al cluster de cómputo sin acceso a internet.
 
 ```bash
-uv run python scripts/download_model.py --all
+python scripts/download_model.py --all
 ```
 
 Modelos disponibles: `BETO`, `RoBERTa-biomedical`, `paraphrase-multilingual`.
