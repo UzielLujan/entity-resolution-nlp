@@ -91,16 +91,19 @@ entity-resolution-nlp/
 
 ---
 
-## Inicio rápido
+## Configuración de inicio
 
-La raíz configurada en `.env` debe contener al menos una variante del dataset etiquetado en `processed/default/output/<variant>/dataset.parquet`.
-
-### 1. Entorno
-
+### 0. Variables de entorno
+Primero, copie `.env.example` como `.env` y configure la variable `INER_DATA_ROOT` con una ruta absoluta a la raíz externa de artefactos. Esta raíz debe contener al menos una variante del dataset etiquetado en `processed/default/output/<variant>/dataset.parquet`.
 ```bash
 cp .env.example .env
-# Configure INER_DATA_ROOT en .env.
+```
 
+### 1. Entorno de python
+
+Se recomienda usar `uv`:
+
+```bash
 uv sync
 source .venv/bin/activate
 python -m record_linkage.config
