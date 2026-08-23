@@ -1,20 +1,20 @@
 """Descarga modelos desde Hugging Face o recarga copias locales para prepararlos como SentenceTransformer.
 
-El mismo flujo se aplica a BETO, RoBERTa-biomedical y paraphrase-multilingual:
-descarga o recarga el modelo, registra en su propio tokenizador los tokens
-estructurales [BLK_*], [COL] y [VAL], redimensiona su matriz de embeddings y
-guarda el artefacto listo para usar sin internet en el cluster.
+El mismo flujo se aplica a los 3 modelos seleccionados:
+1. Descarga o recarga el modelo, registra en su propio tokenizador los tokens especiales [BLK_*], [COL] y [VAL],
+2. Redimensiona su matriz de embeddings y
+3. Guarda el artefacto listo para usar.
 
 El redimensionamiento asigna vectores iniciales a los tokens nuevos. Durante el
 entrenamiento del Bi-Encoder, train_biencoder.py reemplaza esos vectores con una
 inicializacion semantica basada en palabras ancla.
 
 Uso:
-    python scripts/download_model.py --model dccuchile/bert-base-spanish-wwm-cased --name BETO
-    python scripts/download_model.py --model PlanTL-GOB-ES/roberta-base-bne --name RoBERTa-bne
-    python scripts/download_model.py --all
+    .venv/bin/python scripts/download_model.py --model dccuchile/bert-base-spanish-wwm-cased --name BETO
+    .venv/bin/python scripts/download_model.py --model PlanTL-GOB-ES/roberta-base-biomedical-clinical-es --name RoBERTa-biomedical
+    .venv/bin/python scripts/download_model.py --all
 
-Los modelos se guardan en ~/Data/INER/models/pretrained/<name>/
+Los modelos se guardan en $INER_DATA_ROOT/modeling/models/pretrained/<name>/
 para transferirlos al cluster sin necesidad de internet en los nodos de cómputo.
 """
 
@@ -29,13 +29,12 @@ from record_linkage.config import PRETRAINED_MODELS_DIR
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.models import Pooling, Transformer
 
+
 KNOWN_MODELS = {
     "BETO": "dccuchile/bert-base-spanish-wwm-cased",
-    # roberta-base-bne fue removido de HuggingFace Hub (repo vacío desde 2026-04-28)
-    # Se usa el modelo biomédico-clínico del mismo grupo, más relevante para el dominio INER
+    # Modelo biomédico-clínico, más relevante para el dominio INER
     "RoBERTa-biomedical": "PlanTL-GOB-ES/roberta-base-biomedical-clinical-es",
-    # Baseline de similitud semántica: ya fine-tuned para similitud, multilingüe (incluye español)
-    # Sirve como cota superior pre-MNRL para diagnosticar si las métricas bajas son del modelo o los datos
+    # Modelo ya fine-tuned para similitud, multilingüe (incluye español), como su nombre indica fue especializado para parafraseo, por lo que su dominio de origen no es el del INER. Se incluye como baseline de similitud semántica.
     "paraphrase-multilingual": "sentence-transformers/paraphrase-multilingual-mpnet-base-v2",
 }
 
@@ -79,15 +78,20 @@ def download_model(model_id: str, output_name: str) -> Path:
     """Prepara y guarda un modelo con sus tokens especiales registrados.
 
     Cada modelo conserva su tokenizador propio. El registro es idempotente: si
-    el modelo local ya contiene los tokens, no se vuelven a anadir.
+    el modelo local ya contiene los tokens, no se vuelven a anadir. Un directorio
+    de salida incompleto se rechaza explícitamente para no cargarlo como modelo.
     """
     output_dir = PRETRAINED_MODELS_DIR / output_name
 
     if output_dir.exists():
+        if not (output_dir / "modules.json").is_file():
+            raise RuntimeError(
+                f"El directorio de salida existe pero no contiene un modelo completo: {output_dir}. "
+                "Elimínalo antes de reintentar la descarga."
+            )
         print(f"Cargando desde disco: {output_dir}")
         model = SentenceTransformer(str(output_dir))
     else:
-        output_dir.mkdir(parents=True, exist_ok=True)
         print(f"Descargando: {model_id}")
         print(f"  → {output_dir}")
         transformer = _load_transformer(model_id)
