@@ -22,12 +22,13 @@ import argparse
 import sys
 import tempfile
 from pathlib import Path
+from typing import cast
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from record_linkage.config import PRETRAINED_MODELS_DIR
 from sentence_transformers import SentenceTransformer
-from sentence_transformers.models import Pooling, Transformer
+from sentence_transformers.sentence_transformer.modules import Pooling, Transformer
 
 
 KNOWN_MODELS = {
@@ -77,11 +78,11 @@ def _load_transformer(model_id: str) -> Transformer:
 
     # Copia temporal con una configuración compatible
     patched_dir = Path(tempfile.mkdtemp(prefix="st_roberta_bne_"))
-    hf_model.config.model_type = "roberta"
+    setattr(hf_model.config, "model_type", "roberta")
 
     # Exportamos pesos, configuración y tokenizer al directorio corregido.
-    hf_model.save_pretrained(patched_dir)
-    tokenizer.save_pretrained(patched_dir)
+    hf_model.save_pretrained(str(patched_dir))
+    tokenizer.save_pretrained(str(patched_dir))
 
     # Reutilizamos el flujo estándar de sentence-transformers usando la copia
     # temporal ya corregida.
@@ -129,7 +130,8 @@ def download_model(model_id: str, output_name: str) -> Path:
     # Añadir los tokens especiales al vocabulario del modelo.
     num_added = tokenizer.add_special_tokens({"additional_special_tokens": SPECIAL_TOKENS})
     # Ampliar la matriz de embeddings para que incluya los tokens recién registrados.
-    model._first_module().auto_model.resize_token_embeddings(len(tokenizer))
+    first_module = cast(Transformer, model._first_module())
+    first_module.auto_model.resize_token_embeddings(len(tokenizer))
     # Guardar el modelo completo, incluido el tokenizador actualizado.
     model.save(str(output_dir))
     print(f"  ✓ Guardado en {output_dir} ({num_added} tokens especiales añadidos)")
