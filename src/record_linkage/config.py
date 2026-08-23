@@ -35,7 +35,7 @@ SUPPORTED_VARIANTS: tuple[str, ...] = (
     "notok_keepnull",
 )
 
-# ── Artefactos del pipeline neuronal ──────────────────────────────────────────
+# ── Artefactos del pipeline de deep learning ──────────────────────────────────────────
 MODELING_DIR: Path = DATA_ROOT / "modeling"
 MODELING_DATA_DIR: Path = MODELING_DIR / "data"
 
@@ -92,7 +92,7 @@ def crossencoder_run_dir(run_name: str, variant: str = DEFAULT_VARIANT) -> Path:
 # ── Validación del entorno ────────────────────────────────────────────────────
 def check_paths() -> None:
     """Verifica la entrada mínima y muestra las rutas derivadas del pipeline."""
-    print("── Configuración del pipeline neuronal ──────────────────────")
+    print("── Configuración del pipeline de deep learning ──────────────────────")
     print(f"  REPO_ROOT:      {REPO_ROOT}")
     print(f"  INER_DATA_ROOT: {DATA_ROOT}")
 
@@ -110,7 +110,7 @@ def check_paths() -> None:
         if required and not path.is_file():
             errors.append(f"Falta el dataset por default: {path}")
 
-    print("\n── Salidas del pipeline neuronal ────────────────────────────")
+    print("\n── Salidas del pipeline de deep learning ────────────────────────────")
     for name, path in {
         "modeling": MODELING_DIR,
         "datos": MODELING_DATA_DIR,
