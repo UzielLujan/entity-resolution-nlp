@@ -1,9 +1,9 @@
 """
-Augmentation operators for Bi-Encoder training.
-Applied on-the-fly during data loading; no augmented data is persisted to disk.
+Operadores de aumento de datos para entrenamiento de Bi-Encoder.
+Aplicados on-the-fly durante la carga de datos; no se persiste ningún dato aumentado en disco.
 
-Operators:
-    shuffle_blocks   — permuta aleatoriamente el orden de bloques [BLK_*] como unidades atómicas
+Operatores disponibles:
+    shuffle_blocks   — permuta aleatoriamente el orden de bloques [BLK_*] como unidades indivisibles
     shuffle_columns  — permuta columnas [COL]/[VAL] dentro de cada bloque
     mask_attributes  — reemplaza valores de campos con NULL (simula datos faltantes)
     inject_typos     — introduce errores tipográficos en valores de texto
@@ -14,7 +14,7 @@ import random
 import re
 from dataclasses import dataclass
 
-# Patrones de parsing
+# Patrones de regex para localizar bloques, columnas y valores en el texto serializado
 _BLK_SPLIT   = re.compile(r'(\[BLK_\w+\])')
 _COL_SPLIT   = re.compile(r'(?=\[COL\])')
 _TOKENIZE    = re.compile(r'\[[^\]]+\]|\S+')
@@ -46,7 +46,7 @@ class AugmentationConfig:
 def shuffle_blocks(text: str) -> str:
     """Permuta aleatoriamente el orden de bloques semánticos.
 
-    Cada [BLK_*] y su contenido [COL]/[VAL] se mueven como unidad atómica —
+    Cada [BLK_*] y su contenido [COL]/[VAL] se mueven como unidad —
     equivalente a permutar SERIALIZATION_ORDER en tiempo de entrenamiento.
     """
     parts = _BLK_SPLIT.split(text)
