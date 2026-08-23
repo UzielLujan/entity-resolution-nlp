@@ -6,9 +6,9 @@ Uso:
     python scripts/run_splitting.py --variant notok_skipnull
     python scripts/run_splitting.py --train 0.70 --val 0.15 --seed 42
 
-El dataset de entrada es el que produce la consultoría:
+El dataset de entrada es el que produce el pipeline de datos en la ruta:
     <DATA_ROOT>/processed/default/output/<variant>/dataset.parquet
-La salida es un artefacto de la tesis:
+La salida es un artefacto en la ruta:
     <DATA_ROOT>/modeling/data/<variant>/split.parquet
 """
 
@@ -18,17 +18,22 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import DEFAULT_VARIANT, prepared_dataset_path, split_path
+from record_linkage.config import (
+    DEFAULT_VARIANT,
+    SUPPORTED_VARIANTS,
+    prepared_dataset_path,
+    split_path,
+)
 from record_linkage.data.splitting import split_dataset
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Partición train/val/test del dataset")
     parser.add_argument(
         "--variant",
-        choices=["tok_skipnull", "tok_keepnull", "notok_skipnull", "notok_keepnull"],
+        choices=SUPPORTED_VARIANTS,
         default=DEFAULT_VARIANT,
-        help=f"Variante de consultoría a particionar (default: {DEFAULT_VARIANT})",
+        help=f"Variante del dataset a particionar (default: {DEFAULT_VARIANT})",
     )
     parser.add_argument(
         "--dataset", type=str, default=None,
@@ -48,7 +53,7 @@ def main():
 
     if not parquet_path.exists():
         print(f"Error: dataset no encontrado en {parquet_path}")
-        print("  El dataset lo produce la consultoría (repo consultoria-iner).")
+        print("  El dataset lo produce el repo consultoria-iner.")
         return 1
 
     print(f"\nParticionando dataset (variante {args.variant})...")
