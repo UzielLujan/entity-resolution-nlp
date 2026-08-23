@@ -14,10 +14,12 @@ El INER cuenta con tres bases de datos independientes de pacientes COVID-19 que 
 | Costos y Económico | 4,632 | costos de atención, datos socioeconómicos |
 | Trabajo Social | 14,796 | datos demográficos, familia, situación social |
 
-El dataset preparado contiene **23,706 registros**, **15,283 entidades únicas** y
-**4,605 entidades vinculables**. Estas últimas representan **11,447 combinaciones
-cross-DB**. El ground truth es un *silver standard* construido y revisado en el repositorio
-independiente `consultoria-iner`.
+El dataset preparado contiene **un total de 23,706 registros**, **15,283 entidades únicas** y
+**4,605 entidades vinculables**. Estas entidades generan **11,447 pares positivos entre bases
+de datos a nivel entidad**. Al expandir cada entidad a todas las combinaciones cross-db de sus
+registros, el conjunto contiene **12,224 pares positivos entre bases de datos a nivel registro**,
+utilizados por el pipeline en sus respectivos splits. Este ground truth es un *silver standard*
+construido y revisado en el repositorio independiente `consultoria-iner`.
 
 ---
 
