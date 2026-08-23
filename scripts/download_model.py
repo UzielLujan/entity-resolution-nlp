@@ -40,31 +40,52 @@ KNOWN_MODELS = {
 
 
 def _load_transformer(model_id: str) -> Transformer:
-    """Carga un backbone HuggingFace como Transformer de sentence-transformers.
+    """Carga un modelo de Hugging Face como módulo Transformer de sentence-transformers.
 
-    Maneja modelos sin 'model_type' en config.json (e.g. PlanTL-GOB-ES/roberta-base-bne)
-    cargándolos directamente con RobertaModel, que conoce su propia arquitectura,
-    y re-exportando con config.json correcto antes de cargar como Transformer.
+    Primero intenta la carga estándar. Si el modelo falla porque su config.json no
+    contiene el campo `model_type`, aplica una ruta alternativa específicamente
+    para modelos RoBERTa. Los pesos del modelo no se modifican; solo se corrige la metadata
+    necesaria para que el cargador genérico pueda identificar la arquitectura.
+
+    Args:
+        model_id: Identificador de Hugging Face o ruta local al modelo.
+
+    Returns:
+        Un módulo Transformer compatible con SentenceTransformer.
+
+    Raises:
+        ValueError: Si la carga falla por una razón distinta a la ausencia
+            de `model_type`.
     """
+
+    # Ruta normal: sentence-transformers identifica la arquitectura a partir
+    # de la configuración del modelo y carga automáticamente backbone y tokenizer.
     try:
         return Transformer(model_id)
     except ValueError as e:
         if "model_type" not in str(e):
             raise
 
-    # Cargar con RobertaModel directamente (bypassa AutoConfig)
+    # Importaciones locales: solo son necesarias para la ruta de compatibilidad
+    # con modelos RoBERTa cuya configuración no puede leer AutoConfig.
     from transformers import RobertaModel, RobertaTokenizerFast
-    print("  Cargando con RobertaModel (sin AutoConfig)...")
+
+    print("  Cargando explícitamente como RoBERTa (sin AutoConfig)...")
+
     hf_model = RobertaModel.from_pretrained(model_id)
     tokenizer = RobertaTokenizerFast.from_pretrained(model_id)
 
-    # Guardar con config.json que incluye model_type
+    # Copia temporal con una configuración compatible
     patched_dir = Path(tempfile.mkdtemp(prefix="st_roberta_bne_"))
     hf_model.config.model_type = "roberta"
+
+    # Exportamos pesos, configuración y tokenizer al directorio corregido.
     hf_model.save_pretrained(patched_dir)
     tokenizer.save_pretrained(patched_dir)
 
-    print("  Cargando desde directorio parcheado...")
+    # Reutilizamos el flujo estándar de sentence-transformers usando la copia
+    # temporal ya corregida.
+    print("  Cargando desde el directorio temporal corregido...")
     return Transformer(str(patched_dir))
 
 
@@ -77,13 +98,14 @@ SPECIAL_TOKENS = [
 def download_model(model_id: str, output_name: str) -> Path:
     """Prepara y guarda un modelo con sus tokens especiales registrados.
 
-    Cada modelo conserva su tokenizador propio. El registro es idempotente: si
-    el modelo local ya contiene los tokens, no se vuelven a anadir. Un directorio
+    Cada modelo conserva su tokenizador propio.
+    Si el modelo local ya contiene los tokens, no se vuelven a añadir. Un directorio
     de salida incompleto se rechaza explícitamente para no cargarlo como modelo.
     """
     output_dir = PRETRAINED_MODELS_DIR / output_name
 
     if output_dir.exists():
+        # Si ya existe un modelo completo, se reutiliza sin descargarlo de nuevo.
         if not (output_dir / "modules.json").is_file():
             raise RuntimeError(
                 f"El directorio de salida existe pero no contiene un modelo completo: {output_dir}. "
@@ -92,6 +114,8 @@ def download_model(model_id: str, output_name: str) -> Path:
         print(f"Cargando desde disco: {output_dir}")
         model = SentenceTransformer(str(output_dir))
     else:
+        # Primera preparación: cargar el backbone y construir el modelo completo
+        # con una capa de mean pooling.
         print(f"Descargando: {model_id}")
         print(f"  → {output_dir}")
         transformer = _load_transformer(model_id)
@@ -102,10 +126,12 @@ def download_model(model_id: str, output_name: str) -> Path:
         model = SentenceTransformer(modules=[transformer, pooling])
 
     tokenizer = model.tokenizer
+    # Añadir los tokens especiales al vocabulario del modelo.
     num_added = tokenizer.add_special_tokens({"additional_special_tokens": SPECIAL_TOKENS})
+    # Ampliar la matriz de embeddings para que incluya los tokens recién registrados.
     model._first_module().auto_model.resize_token_embeddings(len(tokenizer))
+    # Guardar el modelo completo, incluido el tokenizador actualizado.
     model.save(str(output_dir))
-
     print(f"  ✓ Guardado en {output_dir} ({num_added} tokens especiales añadidos)")
     return output_dir
 
