@@ -41,7 +41,6 @@ def compute_metrics_at_k(
     query_entity_ids: np.ndarray,
     candidate_entity_ids: np.ndarray,
     k_values: list,
-    negative_sample_size: int = 10,
 ) -> dict:
     """Hit@K, Recall@K, RecallNorm@K, Precision@K, MRR y métricas del espacio métrico.
 
@@ -51,7 +50,6 @@ def compute_metrics_at_k(
         query_entity_ids:      (n_q,) entity_id de cada query.
         candidate_entity_ids:  (n_c,) entity_id de cada candidato.
         k_values:              lista de K a reportar (ej. [1, 5, 10, 20, 50]).
-        negative_sample_size:  cuántas similitudes negativas muestrear por query (para Δsep).
 
     Returns:
         dict con keys: Hit@K, Recall@K, RecallNorm@K, Precision@K (uno por K), MRR,
@@ -66,7 +64,7 @@ def compute_metrics_at_k(
     precision_sum = {k: 0.0 for k in k_values}
     reciprocal_ranks = []
     positive_sims = []
-    negative_sims_sample = []
+    negative_sims = []
 
     n_queries = len(query_entity_ids)
 
@@ -80,15 +78,7 @@ def compute_metrics_at_k(
             continue
 
         positive_sims.extend(sims[positive_mask].tolist())
-        neg_sims = sims[~positive_mask]
-        if len(neg_sims) > 0:
-            # TODO(revisión post-separación de repos): este submuestreo uniforme sin seed
-            # puede inflar Δsep al diluir hard negatives y hace la métrica no determinista.
-            # Decidir entre usar todos los negativos o fijar seed+K. Ver docs/Anexos/metricas_evaluacion.md §4.2.1.
-            sample_idx = np.random.choice(
-                len(neg_sims), min(negative_sample_size, len(neg_sims)), replace=False
-            )
-            negative_sims_sample.extend(neg_sims[sample_idx].tolist())
+        negative_sims.extend(sims[~positive_mask].tolist())
 
         # Top-K por similitud descendente
         top_k_indices = np.argpartition(sims, -max_k)[-max_k:]
@@ -118,8 +108,8 @@ def compute_metrics_at_k(
     results["MRR"]       = round(float(np.mean(reciprocal_ranks)), 4) if reciprocal_ranks else 0.0
     results["n_queries"] = n_queries
 
-    if positive_sims and negative_sims_sample:
-        results["space_metrics"] = _space_metrics(positive_sims, negative_sims_sample)
+    if positive_sims and negative_sims:
+        results["space_metrics"] = _space_metrics(positive_sims, negative_sims)
 
     return results
 

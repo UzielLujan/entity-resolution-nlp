@@ -260,14 +260,15 @@ def evaluate_finetuned_checkpoint(
 def evaluate_zeroshot_model(
     model_name: str,
     dataset_path: Path,
+    split: Optional[str] = None,
     k_values: list = K_VALUES_DEFAULT,
     max_seq_length: int = 512,
-    batch_size: int = 64,
+    batch_size: int = 32,
 ) -> dict:
-    """Evalúa un modelo pretrained (sin fine-tuning) sobre todo el dataset.
+    """Evalúa un modelo pretrained (sin fine-tuning) sobre un dataset o split.
 
-    A diferencia de evaluate_finetuned_checkpoint, no usa splits — todo el dataset
-    sirve como pool. Devuelve {} si el modelo no se encuentra localmente.
+    Si split=None, usa todo el dataset para diagnóstico exploratorio. Devuelve {}
+    si el modelo no se encuentra localmente.
     """
     print(f"\n{'='*60}\nEvaluando zero-shot: {model_name}\n{'='*60}")
 
@@ -284,8 +285,9 @@ def evaluate_zeroshot_model(
     print(f"  Modelo cargado en {time.time()-t0:.1f}s — max_seq_length={max_seq_length}")
     print(f"  Dispositivo: {'cuda' if torch.cuda.is_available() else 'cpu'}")
 
-    print(f"\n  Cargando dataset...")
-    df = load_dataset_split(dataset_path, split=None)
+    split_label = split if split is not None else "completo"
+    print(f"\n  Cargando split '{split_label}'...")
+    df = load_dataset_split(dataset_path, split=split)
     df_linkable = find_linkable_records(df)
 
     print(f"\n  Codificando registros vinculables...")

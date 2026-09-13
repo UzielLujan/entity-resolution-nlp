@@ -1,17 +1,14 @@
 """Evaluación zero-shot del Bi-Encoder sobre pares cross-database del INER.
 
 Mismas 4 métricas + MRR + Δseparabilidad que evaluate_finetuned.py, pero sobre
-modelos preentrenados (sin fine-tuning) y sobre todo el dataset (sin splits).
+modelos preentrenados sin fine-tuning.
 
 Uso:
-    python scripts/evaluate_zeroshot.py --model BETO
-    python scripts/evaluate_zeroshot.py --model RoBERTa-biomedical
-    python scripts/evaluate_zeroshot.py --model paraphrase-multilingual
-    python scripts/evaluate_zeroshot.py --model BETO --model RoBERTa-biomedical
-    python scripts/evaluate_zeroshot.py --all
+    .venv/bin/python scripts/evaluate_zeroshot.py --model BETO
+    .venv/bin/python scripts/evaluate_zeroshot.py --all --split test
 
-Dataset por defecto: ~/Data/INER/processed/default/output/notok_skipnull/dataset.parquet
-Salida:              ~/Data/INER/outputs/evaluation/zeroshot_results_<variante>.json
+Dataset por defecto: $INER_DATA_ROOT/modeling/data/notok_skipnull/split.parquet
+Salida: $INER_DATA_ROOT/modeling/outputs/evaluation/biencoder/zeroshot/
 """
 
 import argparse
@@ -21,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import EVALUATION_DIR, PREPARED_DATA_DIR
+from record_linkage.config import EVALUATION_DIR, split_path
 from record_linkage.evaluation.biencoder_eval import (
     K_VALUES_DEFAULT,
     evaluate_zeroshot_model,
@@ -32,9 +29,6 @@ KNOWN_MODELS = [
     "BETO",
     "RoBERTa-biomedical",
     "paraphrase-multilingual",
-    # RoBERTa-bne-sts pendiente: pre-entrenado para clasificación, no similitud.
-    # Discutir con asesor antes de incluir.
-    "RoBERTa-bne-sts",
 ]
 
 
@@ -46,12 +40,16 @@ def main():
     group.add_argument("--all", action="store_true",
                        help="Evalúa todos los modelos conocidos")
     parser.add_argument("--dataset", type=str, default=None,
-                        help="Ruta al dataset.parquet (default: notok_skipnull/dataset.parquet)")
+                        help="Ruta al split.parquet (default: notok_skipnull/split.parquet)")
+    parser.add_argument("--split", choices=["train", "val", "test", "all"], default="test",
+                        help="Split a evaluar (default: test; all = dataset completo)")
+    parser.add_argument("--batch-size", type=int, default=32,
+                        help="Batch size para encoding (default: 32)")
     args = parser.parse_args()
 
     dataset_path = (
         Path(args.dataset) if args.dataset
-        else PREPARED_DATA_DIR / "notok_skipnull" / "dataset.parquet"
+        else split_path("notok_skipnull")
     )
     if not dataset_path.exists():
         print(f"ERROR: dataset no encontrado en {dataset_path}")
@@ -59,6 +57,7 @@ def main():
         return 1
 
     models_to_eval = KNOWN_MODELS if args.all else args.models
+    split = None if args.split == "all" else args.split
 
     output_dir = EVALUATION_DIR / "biencoder" / "zeroshot"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -68,7 +67,9 @@ def main():
         results = evaluate_zeroshot_model(
             model_name=model_name,
             dataset_path=dataset_path,
+            split=split,
             k_values=K_VALUES_DEFAULT,
+            batch_size=args.batch_size,
         )
         if results:
             all_model_results[model_name] = results
@@ -77,7 +78,7 @@ def main():
         print("\nNingún modelo se pudo evaluar.")
         return 1
 
-    suffix = Path(dataset_path).parent.name
+    suffix = f"{Path(dataset_path).parent.name}_{args.split}"
     output_path = output_dir / f"zeroshot_results_{suffix}.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(all_model_results, f, ensure_ascii=False, indent=2)
