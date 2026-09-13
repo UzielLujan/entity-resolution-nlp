@@ -45,8 +45,8 @@ def build_biencoder(model_name_or_path: Union[str, Path]) -> SentenceTransformer
         model_name_or_path: ID de HuggingFace Hub o ruta local al modelo.
             Ejemplos:
                 'dccuchile/bert-base-spanish-wwm-cased'   (BETO, desde Hub)
-                '~/Data/INER/models/pretrained/BETO'      (BETO, local)
-                '~/Data/INER/models/pretrained/RoBERTa-bne'
+                '$INER_DATA_ROOT/modeling/models/pretrained/BETO'      (BETO, local)
+                '$INER_DATA_ROOT/modeling/models/pretrained/RoBERTa-biomedical'
 
     Returns:
         SentenceTransformer listo para encode() o fine-tuning con MNRL.

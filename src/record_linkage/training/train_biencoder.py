@@ -88,13 +88,14 @@ def warm_init_special_tokens(st_model) -> None:
 class BiEncoderDataset(Dataset):
     """Pares (anchor, positive) para MNRL.
 
-    - Pares naturales:  registros cross-db del mismo entity_id (sin augmentación)
+    - Pares positivos entre bases de datos a nivel registro: registros del mismo
+      entity_id sin augmentación
     - Pares sintéticos: (registro, augment(registro)) — augmentación on-the-fly
     """
 
     def __init__(self, df: pd.DataFrame, n_augmentations: int, aug_config: AugmentationConfig):
         self.aug_config = aug_config
-        self.natural_pairs = []
+        self.cross_db_record_positive_pairs = []
         self.synthetic_anchors = []
 
         for _, group in df.groupby("entity_id"):
@@ -104,20 +105,20 @@ class BiEncoderDataset(Dataset):
                 for j in range(i + 1, len(sources)):
                     for ta in by_source[sources[i]]:
                         for tb in by_source[sources[j]]:
-                            self.natural_pairs.append((ta, tb))
+                            self.cross_db_record_positive_pairs.append((ta, tb))
 
         self.synthetic_anchors = df["text"].tolist() * n_augmentations
         random.shuffle(self.synthetic_anchors)
 
-        self._n_natural = len(self.natural_pairs)
+        self._n_cross_db_record_positive_pairs = len(self.cross_db_record_positive_pairs)
 
     def __len__(self):
-        return self._n_natural + len(self.synthetic_anchors)
+        return self._n_cross_db_record_positive_pairs + len(self.synthetic_anchors)
 
     def __getitem__(self, idx):
-        if idx < self._n_natural:
-            return self.natural_pairs[idx]
-        anchor = self.synthetic_anchors[idx - self._n_natural]
+        if idx < self._n_cross_db_record_positive_pairs:
+            return self.cross_db_record_positive_pairs[idx]
+        anchor = self.synthetic_anchors[idx - self._n_cross_db_record_positive_pairs]
         return anchor, augment(anchor, self.aug_config)
 
 
@@ -225,7 +226,7 @@ def train_epoch(st_model, loader, optimizer, scheduler, scaler, device, temperat
 
 def eval_loss(st_model, df_val: pd.DataFrame, batch_size: int, temperature: float,
               device: torch.device) -> float:
-    """Loss MNRL sobre pares naturales de val (sin augmentación)."""
+    """Loss MNRL sobre pares positivos entre bases de datos a nivel registro en val."""
     st_model._first_module().auto_model.eval()
 
     pairs = []
@@ -322,7 +323,7 @@ def main():
         shuffle=True, num_workers=0, drop_last=True,
     )
     print(f"  Pares totales: {len(train_dataset):,} "
-          f"({train_dataset._n_natural:,} naturales + "
+          f"({train_dataset._n_cross_db_record_positive_pairs:,} positivos entre bases a nivel registro + "
           f"{len(train_dataset.synthetic_anchors):,} sintéticos)")
 
     optimizer    = build_optimizer(st_model, base_lr=args.base_lr, decay=args.decay_factor)

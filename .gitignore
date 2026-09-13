@@ -48,8 +48,8 @@ manuscript/**/*.xdv
 .trash/
 
 # Claude context
-CLAUDE.md
-.claude
+AGENTS.md
+
 
 # documentacion
 docs/Anexos/

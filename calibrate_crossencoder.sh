@@ -20,10 +20,10 @@
 #
 # Uso típico:
 #   sbatch calibrate_crossencoder.sh \
-#       ~/Data/INER/models/checkpoints/beto_bce_hpc_v2_tok_skipnull/best \
-#       ~/Data/INER/processed/tesis/output/tok_skipnull/dataset.parquet \
-#       ~/Data/INER/processed/tesis/output/tok_skipnull/pairs_val.parquet \
-#       ~/Data/INER/processed/tesis/output/tok_skipnull/pairs_test.parquet
+#       ~/Data/INER/modeling/models/crossencoder/tok_skipnull/beto_ce/best \
+#       ~/Data/INER/modeling/data/tok_skipnull/split.parquet \
+#       ~/Data/INER/modeling/data/tok_skipnull/pairs_val.parquet \
+#       ~/Data/INER/modeling/data/tok_skipnull/pairs_test.parquet
 
 set -e
 mkdir -p logs

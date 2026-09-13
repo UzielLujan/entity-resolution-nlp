@@ -1,19 +1,15 @@
 # Contrato de datos
 
-Frontera técnica entre `consultoria-iner`, productor de los datos preparados, y
-`entity-resolution-nlp`, consumidor del dataset y productor de artefactos neuronales.
+Frontera técnica entre `consultoria-iner` y
+`entity-resolution-nlp`.
 Ambos repositorios se comunican exclusivamente mediante Parquet bajo `INER_DATA_ROOT`.
 
 ## Responsabilidades
 
-`consultoria-iner` limpia las fuentes, construye y revisa el ground truth, asigna
-`record_id` y `entity_id`, serializa los registros y publica las variantes de
-`dataset.parquet`. `entity-resolution-nlp` no lee datos crudos, no reconstruye el ground
-truth y no escribe dentro de `processed/default/output/`.
-
-`entity-resolution-nlp` produce splits, pares minados, modelos, evaluaciones y embeddings.
-`consultoria-iner` puede consumir los embeddings, pero no modifica los artefactos del
-pipeline neuronal.
+- `consultoria-iner` limpia las fuentes, construye y revisa el ground truth, asigna `record_id` y `entity_id`, serializa los registros y publica las variantes de `dataset.parquet`.
+- `entity-resolution-nlp` no lee datos crudos, no reconstruye el ground truth y no escribe dentro de `processed/default/output/`.
+Produce splits, pares minados, modelos, entrenamiento, evaluaciones y embeddings.
+`consultoria-iner` puede consumir los embeddings.
 
 ## Entrada: consultoría a tesis
 
@@ -71,9 +67,65 @@ consume este artefacto de forma opcional y solo mediante `record_id`.
 | `modeling/` | `entity-resolution-nlp` | `entity-resolution-nlp`; embeddings opcionalmente por consultoría |
 | `raw/`, directorios `clean/` e `interim/` | `consultoria-iner` | `consultoria-iner` |
 
-## Cambios de interfaz
 
-Un cambio en columnas, tipos, valores válidos, semántica u orden de `record_id` requiere
-actualizar este contrato y regenerar los artefactos dependientes. Un cambio exclusivo en
-`text` debe publicarse como una variante nueva o reemplazar explícitamente una variante
-existente, notificando qué modelos y evaluaciones deben repetirse.
+## Estructura oficial de directorios
+
+```text
+INER_DATA_ROOT/
+├── raw/                                      # Entrada protegida de consultoría
+├── processed/                                # Artefactos de consultoria-iner
+│   └── default/
+│       ├── clean/                            # CSV limpios
+│       ├── interim/                          # Pares candidatos y revisión manual
+│       ├── output/                           # Interfaz consultoría → modeling
+│       │   ├── entity_ids.parquet            # Uso interno de consultoría
+│       │   └── <variant>/
+│       │       └── dataset.parquet           # Entrada de entity-resolution-nlp
+│       └── deliverables/
+│           └── audits/                       # Auditorías producidas por consultoría
+│
+└── modeling/                                 # Artefactos de entity-resolution-nlp
+    ├── data/
+    │   └── <variant>/
+    │       ├── split.parquet                 # Dataset con asignación train/val/test
+    │       ├── pairs_train.parquet           # Pares canónicos del Cross-Encoder
+    │       ├── pairs_val.parquet
+    │       └── pairs_test.parquet
+    │
+    ├── models/
+    │   ├── pretrained/                       # Backbones preparados para uso offline
+    │   ├── biencoder/
+    │   │   └── <variant>/
+    │   │       └── <run>/
+    │   │           ├── best/
+    │   │           └── training_history.json
+    │   └── crossencoder/
+    │       └── <variant>/
+    │           └── <run>/
+    │               ├── best/
+    │               ├── training_history.json
+    │               └── calibration.json      # Si se ejecuta calibración
+    │
+    ├── embeddings/
+    │   └── <variant>/
+    │       └── embeddings.parquet            # Exportación canónica del modelo ganador
+    │
+    └── outputs/
+        ├── evaluation/
+        │   ├── biencoder/
+        │   │   ├── zeroshot/
+        │   │   └── finetuned/
+        │   └── crossencoder/
+        │       ├── classification/
+        │       └── calibration/              # Métricas e incertidumbre por vínculo
+        ├── figures/
+        │   ├── embeddings/
+        │   └── training_curves/
+        └── diagnostics/
+            ├── mnrl_batches/
+            │   └── <run>/
+            └── tokenization/
+```
+
+Nota:
+- `processed/default/deliverables/audits/` queda reservado para auditorías generadas por consultoría después de consumir los embeddings.

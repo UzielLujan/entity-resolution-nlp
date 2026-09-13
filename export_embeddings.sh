@@ -11,7 +11,7 @@
 
 # Exporta los embeddings del Bi-Encoder a embeddings.parquet [record_id, embedding].
 # Parámetros (en orden):
-#   $1 CHECKPOINT  obligatorio — nombre del run en checkpoints/
+#   $1 CHECKPOINT  obligatorio — nombre del run canónico del Bi-Encoder
 #   $2 DATASET     obligatorio — ruta al dataset.parquet COMPLETO (no el _split)
 #
 # Uso típico (variante canónica tok_skipnull):

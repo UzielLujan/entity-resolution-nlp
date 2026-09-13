@@ -330,7 +330,7 @@ README sin pesos. El modelo biomédico-clínico es superior para este dominio:
 | `PlanTL-GOB-ES/roberta-base-biomedical-clinical-es` | Texto clínico-biomédico ES | Alta — mismo dominio |
 
 Ambos son RoBERTa/BERT base (12 capas, 768 dim), por lo que la comparación es justa.
-Se guarda localmente como `~/Data/INER/models/pretrained/RoBERTa-biomedical/`.
+Se guarda localmente como `$INER_DATA_ROOT/modeling/models/pretrained/RoBERTa-biomedical/`.
 
 ---
 

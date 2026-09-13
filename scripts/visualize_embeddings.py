@@ -1,8 +1,8 @@
 """Visualización del espacio métrico aprendido por el Bi-Encoder.
 
-Codifica todos los registros de un split, reduce de 768D → 3D (o 2D) con UMAP
-(métrica coseno, alineado al espacio del BE), y produce un scatter interactivo
-de Plotly como HTML.
+Lee los embeddings canónicos exportados, selecciona los registros de un split y
+los reduce de 768D → 3D (o 2D) con UMAP (métrica coseno). Produce un scatter
+interactivo de Plotly como HTML.
 
 El resultado es la prueba visual directa del aprendizaje métrico: si Δ > 2,
 las "islas" de cada paciente (sus 2-3 registros en distintas bases) deben
@@ -11,22 +11,21 @@ aparecer compactas y separadas entre sí.
 Diseño alineado a `docs/Anexos/demo-propuesta.md` § Paso 3:
 - UMAP con métrica cosine (no euclidiana — el espacio del BE es coseno)
 - Colores fijos por source_db: rojo Comorbilidad, verde Económico, azul TS
-- Singletons opcionales con opacity diferenciada
+- Entidades de una sola base de datos opcionales con opacity diferenciada
 
 Uso:
-    # 3D por default sobre split=test del ganador del 2 x 2
+    # 3D por default sobre split=test de la variante canónica
     python scripts/visualize_embeddings.py \\
-        --checkpoint beto_mnrl_hpc_v2_tok_skipnull \\
         --dataset ~/Data/INER/modeling/data/tok_skipnull/split.parquet
 
     # 2D
-    python scripts/visualize_embeddings.py --checkpoint <run> --dataset <parquet> --dims 2
+    python scripts/visualize_embeddings.py --dataset <parquet> --dims 2
 
-    # Solo entidades vinculables (sin singletons)
-    python scripts/visualize_embeddings.py --checkpoint <run> --dataset <parquet> --no-singletons
+    # Solo entidades vinculables (sin entidades de una sola base de datos)
+    python scripts/visualize_embeddings.py --dataset <parquet> --no-single-source
 
     # Fondo oscuro estilo presentación
-    python scripts/visualize_embeddings.py --checkpoint <run> --dataset <parquet> --dark-bg
+    python scripts/visualize_embeddings.py --dataset <parquet> --dark-bg
 """
 
 import argparse
@@ -36,18 +35,19 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import torch
 import umap
 import plotly.express as px
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from record_linkage.config import DEFAULT_VARIANT, FIGURES_DIR, SUPPORTED_VARIANTS
-from record_linkage.evaluation.biencoder_eval import (
-    load_dataset_split,
-    resolve_checkpoint_path,
+from record_linkage.config import (
+    DEFAULT_VARIANT,
+    FIGURES_DIR,
+    SUPPORTED_VARIANTS,
+    embeddings_path,
 )
-from record_linkage.models.biencoder import build_biencoder, encode_texts
+from record_linkage.data.columns import SOURCE_IDENTITY_COLUMNS
+from record_linkage.evaluation.biencoder_eval import load_dataset_split
 
 
 def _extract_field(text: str, col: str) -> str:
@@ -83,58 +83,56 @@ def _hex_to_rgba(hex_color: str, alpha: float) -> str:
 
 
 def build_identity_map(dataset_df: pd.DataFrame) -> dict:
-    """Construye un dict {record_id: 'NOMBRE | exp=NNN'} desde el dataset.
+    """Construye un dict {record_id: (nombre, expediente)} desde el dataset.
 
-    Toma nombre y expediente de la serialización `text` que produce la
-    consultoría (`[COL] NOMBRE_DEL_PACIENTE [VAL] ...`), sin depender de
-    los CSVs limpios.
+    Toma los campos de identidad preservados en la serialización según la
+    fuente, sin depender de los CSVs limpios.
 
     Args:
         dataset_df: DataFrame con columnas `record_id` y `text`.
 
     Returns:
-        dict record_id → "NOMBRE | exp=NNN" para hover de Plotly.
+        dict record_id → (nombre, expediente) para hover de Plotly.
     """
     identity_map = {}
-    for record_id, text in zip(dataset_df["record_id"], dataset_df["text"]):
-        nombre = _extract_field(text, "NOMBRE_DEL_PACIENTE")
-        exp    = _extract_field(text, "EXP")
-        identity_map[record_id] = f"{nombre} | exp={exp}"
+    for record_id, source_db, text in zip(
+        dataset_df["record_id"], dataset_df["source_db"], dataset_df["text"]
+    ):
+        exp_col, nombre_col = SOURCE_IDENTITY_COLUMNS[source_db]
+        nombre = _extract_field(text, nombre_col)
+        exp = _extract_field(text, exp_col)
+        identity_map[record_id] = nombre, exp
     return identity_map
 
 
 def main():
     parser = argparse.ArgumentParser(description="Visualiza el espacio métrico del Bi-Encoder con UMAP+Plotly")
-    parser.add_argument("--checkpoint", required=True,
-                        help="Nombre del run en checkpoints/ (usa best/ por defecto)")
     parser.add_argument("--variant", choices=SUPPORTED_VARIANTS, default=DEFAULT_VARIANT)
     parser.add_argument("--dataset", required=True,
                         help="Ruta al dataset.parquet o dataset_split.parquet")
+    parser.add_argument(
+        "--embeddings", type=Path, default=None,
+        help="Parquet [record_id, embedding] (default: modeling/embeddings/<variant>/embeddings.parquet)",
+    )
     parser.add_argument("--split", default="test",
                         choices=["train", "val", "test", "all"],
                         help="Split a visualizar (default: test). 'all' = sin filtrar por split")
     parser.add_argument("--dims", type=int, default=3, choices=[2, 3],
                         help="Dimensiones del scatter (default: 3)")
-    parser.add_argument("--no-singletons", action="store_true",
-                        help="Omitir singletons; solo muestra entidades vinculables")
+    parser.add_argument("--no-single-source", action="store_true",
+                        help="Omitir entidades de una sola base; solo muestra entidades vinculables")
     parser.add_argument("--n-neighbors", type=int, default=15,
                         help="UMAP n_neighbors — balance local/global (default: 15, recomendado en demo-propuesta)")
     parser.add_argument("--min-dist", type=float, default=0.1,
                         help="UMAP min_dist — compacidad de clusters (default: 0.1)")
-    parser.add_argument("--epoch", type=int, default=None,
-                        help="Epoch específico en lugar de best/")
-    parser.add_argument("--batch-size", type=int, default=64,
-                        help="Batch size para encoding (default: 64)")
-    parser.add_argument("--max-seq-length", type=int, default=384,
-                        help="Max seq length para encoding (default: 384)")
     parser.add_argument("--dark-bg", action="store_true",
                         help="Fondo oscuro estilo presentación (#0f0f13). Default: blanco.")
     parser.add_argument("--marker-size", type=int, default=5,
                         help="Tamaño de los puntos (default: 5 para 3D, sube si hay pocos puntos)")
-    parser.add_argument("--singleton-opacity", type=float, default=0.25,
-                        help="Opacidad de los singletons (0.0–1.0, default: 0.25). Sube para verlos más")
+    parser.add_argument("--single-source-opacity", type=float, default=0.25,
+                        help="Opacidad de entidades de una sola base (0.0–1.0, default: 0.25).")
     parser.add_argument("--output-html", default=None,
-                        help="Ruta del HTML (default: outputs/figures/embeddings_<checkpoint>_<split>_<dims>D.html)")
+                        help="Ruta del HTML (default: outputs/figures/embeddings/<checkpoint de procedencia>_<split>_<dims>D.html)")
     highlight_group = parser.add_mutually_exclusive_group()
     highlight_group.add_argument("--highlight-entity", type=int, default=None,
                                   help="entity_id específico a resaltar — añade annotations permanentes "
@@ -145,39 +143,42 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
-    # === Carga modelo
-    ckpt_path = resolve_checkpoint_path(args.checkpoint, args.epoch, args.variant)
-    print(f"\nCargando BE: {ckpt_path}")
-    t0 = time.time()
-    model = build_biencoder(ckpt_path)
-    model.max_seq_length = args.max_seq_length
-    print(f"  BE cargado en {time.time()-t0:.1f}s | max_seq={args.max_seq_length}")
-    print(f"  Dispositivo: {'cuda' if torch.cuda.is_available() else 'cpu'}")
-
     # === Carga dataset
     dataset_path = Path(args.dataset)
     split = None if args.split == "all" else args.split
     df = load_dataset_split(dataset_path, split=split)
 
-    # === Identificar vinculables vs singletons
+    # === Identificar entidades vinculables vs de una sola base
     entity_sources = df.groupby("entity_id")["source_db"].nunique()
     linkable_ids = set(entity_sources[entity_sources > 1].index)
     df = df.copy()
     df["is_linkable"] = df["entity_id"].isin(linkable_ids)
 
-    if args.no_singletons:
+    if args.no_single_source:
         df = df[df["is_linkable"]].reset_index(drop=True)
         print(f"  Solo vinculables: {len(df):,} registros, {len(linkable_ids):,} entidades")
     else:
         n_link = int(df["is_linkable"].sum())
-        n_sing = len(df) - n_link
-        print(f"  Total: {len(df):,} | vinculables: {n_link:,} | singletons: {n_sing:,}")
+        n_single_source = len(df) - n_link
+        print(f"  Total: {len(df):,} registros | de entidades vinculables: {n_link:,} registros | "
+              f"de entidades de una sola base: {n_single_source:,} registros")
 
-    # === Encoding
-    print(f"\nEncodeando {len(df):,} registros (batch={args.batch_size})...")
+    # === Embeddings canónicos
+    embeddings_file = args.embeddings.expanduser() if args.embeddings else embeddings_path(args.variant)
+    if not embeddings_file.is_file():
+        raise FileNotFoundError(f"Embeddings no encontrados: {embeddings_file}")
+    embeddings_df = pd.read_parquet(embeddings_file, columns=["record_id", "embedding"])
+    if embeddings_df["record_id"].duplicated().any():
+        raise ValueError(f"Embeddings con record_id duplicados: {embeddings_file}")
+    embeddings_df = embeddings_df.set_index("record_id")
+    missing_ids = set(df["record_id"]) - set(embeddings_df.index)
+    if missing_ids:
+        raise ValueError(f"Faltan {len(missing_ids):,} record_id del split en {embeddings_file}")
+
+    print(f"\nCargando embeddings: {embeddings_file}")
     t0 = time.time()
-    embeddings = encode_texts(model, df["text"].tolist(), batch_size=args.batch_size)
-    print(f"  Embeddings: {time.time()-t0:.1f}s | shape={embeddings.shape}")
+    embeddings = np.stack(embeddings_df.loc[df["record_id"], "embedding"].to_numpy()).astype(np.float32)
+    print(f"  Embeddings cargados en {time.time()-t0:.1f}s | shape={embeddings.shape}")
 
     # === UMAP
     print(f"\nReduciendo {embeddings.shape[1]}D → {args.dims}D con UMAP "
@@ -204,9 +205,11 @@ def main():
     viz["entity_id"]   = df["entity_id"].values
     viz["record_id"]   = df["record_id"].values
     viz["is_linkable"] = df["is_linkable"].values
-    # Identidad compacta para hover: "NOMBRE | exp=NNN" — parseada del text serializado
+    # Campos de identidad para hover, parseados del texto serializado.
     identity_map = build_identity_map(df)
-    viz["identidad"]   = df["record_id"].map(identity_map).values
+    identities = df["record_id"].map(identity_map)
+    viz["nombre"] = [identity[0] for identity in identities]
+    viz["expediente"] = [identity[1] for identity in identities]
 
     # === Selección de cluster a destacar (annotations permanentes)
     highlight_entity = None
@@ -233,11 +236,11 @@ def main():
         highlight_df = viz[viz["entity_id"] == highlight_entity].copy()
         print(f"  Destacando {len(highlight_df)} puntos del entity_id={highlight_entity}:")
         for _, r in highlight_df.iterrows():
-            print(f"    {r['source_db']:<16}: {r['identidad']}")
+            print(f"    {r['source_db']:<16}: Nombre = {r['nombre']} | Exp = {r['expediente']}")
 
     # === Plotly figure
-    title = (f"Espacio métrico aprendido — {args.checkpoint} | "
-             f"split={args.split} | {args.dims}D | {len(viz):,} puntos")
+    title_suffix = "registros vinculables" if args.no_single_source else "registros"
+    title = f"Espacio métrico aprendido | {len(viz):,} {title_suffix}"
 
     # hover_data como dict: True = mostrar, False = ocultar.
     # Ocultamos u1/u2/u3 (axes coords) y is_linkable (interno) — solo metadata útil.
@@ -245,9 +248,17 @@ def main():
         "entity_id":   True,
         "record_id":   True,
         "source_db":   True,
-        "identidad":   True,
+        "nombre":      True,
+        "expediente":  True,
         "u1": False, "u2": False,
         "is_linkable": False,
+    }
+    labels = {
+        "source_db": "Base de datos",
+        "entity_id": "Entidad",
+        "record_id": "Registro",
+        "nombre": "Nombre",
+        "expediente": "Expediente",
     }
     if args.dims == 3:
         hover_data["u3"] = False
@@ -256,6 +267,7 @@ def main():
             color="source_db",
             color_discrete_map=SOURCE_COLORS,
             hover_data=hover_data,
+            labels=labels,
             title=title,
         )
     else:
@@ -264,30 +276,31 @@ def main():
             color="source_db",
             color_discrete_map=SOURCE_COLORS,
             hover_data=hover_data,
+            labels=labels,
             title=title,
         )
 
     # Opacity per-point: scatter_3d.marker.opacity NO acepta arrays —
     # truco: pasar colores rgba con alpha embebido por punto.
-    if not args.no_singletons:
+    if not args.no_single_source:
         for tr in fig.data:
             mask = (viz["source_db"] == tr.name).values
             is_link = viz.loc[mask, "is_linkable"].values
             src_color = SOURCE_COLORS[tr.name]
             rgba_list = [
-                _hex_to_rgba(src_color, 0.9 if il else args.singleton_opacity)
+                _hex_to_rgba(src_color, 0.9 if il else args.single_source_opacity)
                 for il in is_link
             ]
             tr.marker.color = rgba_list
 
     fig.update_traces(marker=dict(size=args.marker_size, line=dict(width=0)))
 
-    # === Fix legend colors: cuando hay rgba per-point (modo con singletons), la legend
+    # === Fix legend colors: cuando hay rgba per-point (incluye entidades de una sola base), la legend
     # se confunde y toma un color promedio. Solución: ocultar los traces originales del
     # legend y añadir "legend proxy" traces invisibles con color sólido por source_db.
     import plotly.graph_objects as go
 
-    if not args.no_singletons:
+    if not args.no_single_source:
         # Ocultar legend de los traces reales (que tienen rgba per-point)
         for tr in fig.data:
             if tr.name in SOURCE_COLORS:
@@ -325,7 +338,7 @@ def main():
                 ay = -radius * math.sin(angle)
                 scene_annotations.append(dict(
                     x=r["u1"], y=r["u2"], z=r["u3"],
-                    text=f"<b>{r['source_db']}</b><br>{r['identidad']}",
+                    text=f"<b>{r['source_db']}</b><br>Nombre = {r['nombre']}<br>Exp = {r['expediente']}",
                     showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2,
                     arrowcolor=ann_border,
                     ax=ax, ay=ay,
@@ -341,7 +354,7 @@ def main():
                 ay = -radius * math.sin(angle)
                 fig.add_annotation(
                     x=r["u1"], y=r["u2"],
-                    text=f"<b>{r['source_db']}</b><br>{r['identidad']}",
+                    text=f"<b>{r['source_db']}</b><br>Nombre = {r['nombre']}<br>Exp = {r['expediente']}",
                     showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2,
                     arrowcolor=ann_border, ax=ax, ay=ay,
                     font=dict(size=12, color=ann_text_color),
@@ -384,16 +397,19 @@ def main():
             )
 
     # === Output
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir = FIGURES_DIR / "embeddings"
+    output_dir.mkdir(parents=True, exist_ok=True)
     if args.output_html:
         out_path = Path(args.output_html)
     else:
         suffix = ""
-        if args.no_singletons:
-            suffix += "_no_singletons"
+        if args.no_single_source:
+            suffix += "_linkable"
+        if args.dark_bg:
+            suffix += "_dark"
         if highlight_entity is not None:
-            suffix += f"_hl{highlight_entity}"
-        out_path = FIGURES_DIR / f"embeddings_{args.checkpoint}_{args.split}_{args.dims}D{suffix}.html"
+            suffix += f"_highlight-{highlight_entity}"
+        out_path = output_dir / f"embedding_space_{args.split}_{args.dims}d{suffix}.html"
 
     fig.write_html(out_path, include_plotlyjs="cdn")
     print(f"\n✓ HTML guardado: {out_path}")

@@ -169,7 +169,7 @@ def main():
     parser.add_argument("--pairs-val",      default=None,
                         help="Parquet con pares de validación (mismo esquema)")
     parser.add_argument("--output",         default=None,
-                        help="Directorio de checkpoints (default: checkpoints/<model>_ce)")
+                        help="Directorio del run (default: modeling/models/crossencoder/<variant>/<model>_ce)")
     parser.add_argument("--epochs",         type=int,   default=3)
     parser.add_argument("--batch-size",     type=int,   default=16)
     parser.add_argument("--lr",             type=float, default=2e-5)

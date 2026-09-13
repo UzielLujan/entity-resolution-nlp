@@ -103,12 +103,14 @@ python scripts/run_splitting.py --variant "$VARIANT"
 Produce `$SPLIT` con columna `split`. Con `--dataset` puede indicarse otro parquet, pero la salida seguirá nombrándose a partir de `--variant`.
 
 ## 6. Evaluación zero-shot
-La evaluación zero-shot usa normalmente la variante sin tokens y sin nulos:
+La evaluación zero-shot oficial usa la variante sin tokens y sin nulos sobre el
+split de prueba:
 
 ```bash
-python scripts/evaluate_zeroshot.py --all \
-  --dataset "$INER_DATA_ROOT/processed/default/output/notok_skipnull/dataset.parquet"
-python scripts/sanity_check_paraphrase.py
+.venv/bin/python scripts/evaluate_zeroshot.py --all \
+  --dataset "$INER_DATA_ROOT/modeling/data/notok_skipnull/split.parquet" \
+  --split test --batch-size 32
+.venv/bin/python scripts/sanity_check_paraphrase.py
 ```
 
 Los resultados se escriben en `modeling/outputs/evaluation/biencoder/zeroshot/`.
@@ -136,10 +138,15 @@ Para RoBERTa use `train_biencoder_roberta.sh` con los mismos argumentos. Los che
 python scripts/evaluate_finetuned.py --checkpoint "$BE_RUN" --variant "$VARIANT" \
   --dataset "$SPLIT" --split test
 python scripts/plot_training_curves.py --checkpoint "$BE_RUN" --variant "$VARIANT"
-python scripts/visualize_embeddings.py --checkpoint "$BE_RUN" --variant "$VARIANT" \
-  --dataset "$SPLIT" --split test --dims 3
+python scripts/visualize_embeddings.py --variant "$VARIANT" \
+  --dataset "$SPLIT" --embeddings "$EMBEDDINGS" --split test --dims 3
 sbatch eval_biencoder.sh "$BE_RUN" test "$SPLIT"
 ```
+
+El visualizador escribe `embedding_space_<split>_<dims>d.html`. Los sufijos
+opcionales son `_linkable`, `_dark` y `_highlight-<entity_id>`. Las opciones de
+`--split` son `train`, `val`, `test` y `all`; el título del gráfico solo reporta
+el número de registros mostrados y si se filtró a entidades vinculables.
 
 ## 9. Hard Negative Mining
 Por defecto, los pares se escriben en el directorio canónico de la variante:
@@ -189,7 +196,7 @@ La exportación usa el dataset completo, no el split. La variante se infiere del
 ```bash
 python scripts/export_embeddings.py --checkpoint "$BE_RUN" --variant "$VARIANT" \
   --dataset "$DATASET"
-sbatch export_embeddings.sh "$BE_RUN" "$DATASET" "$VARIANT"
+sbatch export_embeddings.sh "$BE_RUN" "$DATASET"
 ```
 
 Ambos comandos producen `$EMBEDDINGS`. Use `--output` en la CLI solo cuando necesite una ruta explícita distinta del contrato canónico.

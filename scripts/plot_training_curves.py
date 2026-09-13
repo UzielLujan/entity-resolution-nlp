@@ -5,17 +5,15 @@ Modos:
   - Comparación: val_loss de varios runs en una sola figura.
 
 Uso:
-    python scripts/plot_training_curves.py --checkpoint beto_mnrl_hpc_v2_tok_skipnull
-    python scripts/plot_training_curves.py --checkpoint beto_mnrl_hpc_v2_tok_skipnull beto_mnrl_hpc_v2_notok_skipnull
+    python scripts/plot_training_curves.py --checkpoint beto_mnrl --variant tok_skipnull
     python scripts/plot_training_curves.py --all
-    python scripts/plot_training_curves.py --all --compare
+    python scripts/plot_training_curves.py --all-variants
 
-Las figuras se guardan en ~/Data/INER/outputs/figures/
+Las figuras se guardan en $INER_DATA_ROOT/modeling/outputs/figures/training_curves/.
 """
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -33,37 +31,10 @@ from record_linkage.config import (
 )
 
 
-# === Naming convention oficial para resultados de tesis ===
-# Mapea checkpoint_name interno → (título_display, filename_corto)
-# Convención: Bi-Encoder · <Modelo> · <versión dataset> · <variante o run>
-
-_MODEL_DISPLAY = {"beto": "BETO", "roberta": "RoBERTa-bio"}
-
-_CHECKPOINT_PATTERNS = [
-    # beto_mnrl_hpc_v2_tok_skipnull → ("Bi-Encoder · BETO v2 · tok_skipnull", "be_beto_v2_tok_skipnull")
-    (re.compile(r"^beto_mnrl_hpc_v2_(.+)$"),
-     lambda m: ("beto", "v2", m.group(1), f"be_beto_v2_{m.group(1)}")),
-    # roberta_bio_hpc_v2_... (cuando llegue)
-    (re.compile(r"^roberta_bio_hpc_v2_(.+)$"),
-     lambda m: ("roberta", "v2", m.group(1), f"be_roberta_v2_{m.group(1)}")),
-]
-
-
-def _pretty(checkpoint_name: str) -> tuple[str, str]:
-    """Devuelve (display_title_prefix, filename_short) para un checkpoint.
-
-    Si el nombre no matchea ningún patrón conocido, regresa el nombre crudo
-    como fallback (no rompe runs futuros con naming distinto).
-    """
-    for pattern, mk in _CHECKPOINT_PATTERNS:
-        m = pattern.match(checkpoint_name)
-        if m:
-            model_key, version, variant, fname = mk(m)
-            model_display = _MODEL_DISPLAY.get(model_key, model_key.upper())
-            display = f"Bi-Encoder · {model_display} · {version} · {variant}"
-            return display, fname
-    # Fallback
-    return checkpoint_name, f"training_curves_{checkpoint_name}"
+def _pretty(checkpoint_name: str, variant: str, data: dict) -> tuple[str, str]:
+    """Devuelve título y nombre de archivo según el run y su variante."""
+    model = data.get("args", {}).get("model", checkpoint_name.split("_")[0]).upper()
+    return f"Bi-Encoder · {model} · {variant}", f"{variant}_{checkpoint_name}"
 
 plt.rcParams.update({
     "font.family": "DejaVu Sans",
@@ -91,7 +62,7 @@ def _run_label(checkpoint_name: str, data: dict) -> str:
     return f"{model} lr={lr}"
 
 
-def plot_individual(checkpoint_name: str, data: dict, output_dir: Path) -> None:
+def plot_individual(checkpoint_name: str, variant: str, data: dict, output_dir: Path) -> None:
     """Una figura por run: train y val en el mismo plot con ejes Y independientes
     (twin axes). Necesario porque train_loss colapsa a ~0 y val_loss se queda en ~1.1;
     una sola escala los aplastaría — twin axes los mantiene legibles.
@@ -104,7 +75,7 @@ def plot_individual(checkpoint_name: str, data: dict, output_dir: Path) -> None:
     train_loss = [r["train_loss"] for r in history]
     val_loss   = [r["val_loss"] for r in history]
 
-    display_prefix, filename = _pretty(checkpoint_name)
+    display_prefix, filename = _pretty(checkpoint_name, variant, data)
     out_path = output_dir / f"{filename}.png"
     if out_path.exists():
         print(f"  Omitido (ya existe): {out_path}")
@@ -151,8 +122,8 @@ def plot_individual(checkpoint_name: str, data: dict, output_dir: Path) -> None:
     print(f"  Guardado: {out_path}")
 
 
-def plot_comparison(checkpoints_data: list[tuple[str, dict]], output_dir: Path,
-                    output_filename: str = "comparison.png") -> None:
+def plot_comparison(checkpoints_data: list[tuple[str, str, dict]], output_dir: Path,
+                    output_filename: str = "biencoder_serialization_comparison.png") -> None:
     """Val loss de todos los runs en una sola figura."""
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.set_title("Comparación val_loss · Bi-Encoder", fontsize=12)
@@ -160,13 +131,13 @@ def plot_comparison(checkpoints_data: list[tuple[str, dict]], output_dir: Path,
     colors = ["#2196F3", "#FF5722", "#4CAF50", "#9C27B0",
               "#FF9800", "#00BCD4", "#E91E63", "#607D8B"]
 
-    for idx, (name, data) in enumerate(checkpoints_data):
+    for idx, (variant, name, data) in enumerate(checkpoints_data):
         history = data["history"]
         best_epoch = data.get("best_epoch")
         epochs   = [r["epoch"] for r in history]
         val_loss = [r["val_loss"] for r in history]
-        # Label corto para legend: usa la parte que viene después de "Bi-Encoder · "
-        display, _ = _pretty(name)
+        # Label corto para la leyenda.
+        display, _ = _pretty(name, variant, data)
         label = display.replace("Bi-Encoder · ", "")
         color = colors[idx % len(colors)]
 
@@ -214,7 +185,11 @@ def main():
     )
     group.add_argument(
         "--all", action="store_true",
-        help="Grafica todos los runs con training_history.json",
+        help="Grafica todos los runs de la variante indicada",
+    )
+    group.add_argument(
+        "--all-variants", action="store_true",
+        help="Grafica todos los runs disponibles en las cuatro variantes",
     )
     parser.add_argument(
         "--compare", action="store_true",
@@ -223,32 +198,34 @@ def main():
     parser.add_argument("--variant", choices=SUPPORTED_VARIANTS, default=DEFAULT_VARIANT)
     args = parser.parse_args()
 
-    if args.all:
-        checkpoints = list_available_checkpoints(args.variant)
-        if not checkpoints:
-            print(f"ERROR: no se encontraron runs en {BIENCODER_MODELS_DIR / args.variant}")
-            return 1
-        print(f"Runs encontrados: {checkpoints}")
-        args.compare = True  # con --all siempre genera comparación
-    else:
-        checkpoints = args.checkpoints
-
     output_dir = FIGURES_DIR / "training_curves"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     loaded = []
-    for name in checkpoints:
-        data = load_history(name, args.variant)
-        if data:
-            loaded.append((name, data))
+    if args.all_variants:
+        for variant in SUPPORTED_VARIANTS:
+            for name in list_available_checkpoints(variant):
+                data = load_history(name, variant)
+                if data:
+                    loaded.append((variant, name, data))
+        args.compare = True
+    else:
+        checkpoints = list_available_checkpoints(args.variant) if args.all else args.checkpoints
+        if args.all and not checkpoints:
+            print(f"ERROR: no se encontraron runs en {BIENCODER_MODELS_DIR / args.variant}")
+            return 1
+        for name in checkpoints:
+            data = load_history(name, args.variant)
+            if data:
+                loaded.append((args.variant, name, data))
 
     if not loaded:
         print("ERROR: no se pudo cargar ningún training_history.json")
         return 1
 
     print(f"\nGenerando curvas individuales...")
-    for name, data in loaded:
-        plot_individual(name, data, output_dir)
+    for variant, name, data in loaded:
+        plot_individual(name, variant, data, output_dir)
 
     if args.compare and len(loaded) > 1:
         print(f"\nGenerando figura de comparación...")

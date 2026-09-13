@@ -11,13 +11,13 @@
 
 # Evalúa un checkpoint fine-tuneado del Bi-Encoder sobre el split indicado.
 # Parámetros (en orden):
-#   $1 CHECKPOINT  obligatorio — nombre del run en checkpoints/
+#   $1 CHECKPOINT  obligatorio — nombre del run canónico del Bi-Encoder
 #   $2 SPLIT       default "test"
-#   $3 DATASET     opcional — ruta al dataset_split.parquet (default: tesis1)
+#   $3 DATASET     opcional — ruta al split.parquet (default: variante canónica)
 #
 # Uso típico (con dataset v2):
 #   sbatch eval_biencoder.sh beto_mnrl_hpc_v2_tok_skipnull test \
-#       ~/Data/INER/processed/tesis/output/tok_skipnull/dataset_split.parquet
+#       ~/Data/INER/modeling/data/tok_skipnull/split.parquet
 
 set -e
 mkdir -p logs
@@ -35,7 +35,7 @@ DATASET=${3:-""}
 
 echo "Checkpoint: $CHECKPOINT"
 echo "Split:      $SPLIT"
-echo "Dataset:    ${DATASET:-default tesis1}"
+echo "Dataset:    ${DATASET:-default de la variante canónica}"
 echo "========================================================"
 
 if [ -n "$DATASET" ]; then

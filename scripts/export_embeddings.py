@@ -14,7 +14,7 @@ parquet para auditoría.
 
 Uso:
     python scripts/export_embeddings.py \\
-        --checkpoint beto_mnrl_hpc_v2_tok_skipnull \\
+        --checkpoint beto_mnrl --variant tok_skipnull \\
         --dataset ~/Data/INER/processed/default/output/tok_skipnull/dataset.parquet
 
     # El output default es $INER_DATA_ROOT/modeling/embeddings/<variant>/embeddings.parquet

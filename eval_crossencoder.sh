@@ -18,9 +18,9 @@
 #   $5 THRESHOLD    Umbral binarización (default 0.5; ignorado en find-threshold)
 #
 # Uso típico:
-#   sbatch eval_crossencoder.sh test ~/Data/INER/models/checkpoints/beto_bce_hpc_v2_tok_skipnull/best \
-#       ~/Data/INER/processed/tesis/output/tok_skipnull/dataset.parquet \
-#       ~/Data/INER/processed/tesis/output/tok_skipnull/pairs_test.parquet
+#   sbatch eval_crossencoder.sh test ~/Data/INER/modeling/models/crossencoder/tok_skipnull/beto_ce/best \
+#       ~/Data/INER/modeling/data/tok_skipnull/split.parquet \
+#       ~/Data/INER/modeling/data/tok_skipnull/pairs_test.parquet
 
 set -e
 mkdir -p logs

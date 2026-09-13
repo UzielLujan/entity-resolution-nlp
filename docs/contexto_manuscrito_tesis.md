@@ -1,6 +1,6 @@
 # Contexto del Manuscrito de Tesis
 
-Documento puente entre el repo de tesis (`entity-resolution-nlp`), el manuscrito LaTeX y el repo separado de consultoría (`consultoria-iner`). Su objetivo es indicar qué fuentes usar para redactar cada parte de la tesis sin reconstruir contexto desde cero.
+Documento puente entre el repositorio de tesis (`entity-resolution-nlp`), su manuscrito LaTeX versionado en `manuscript/` y el repositorio separado de consultoría (`consultoria-iner`). Su objetivo es indicar qué fuentes usar para redactar cada parte de la tesis sin reconstruir contexto desde cero.
 
 ---
 
@@ -8,10 +8,10 @@ Documento puente entre el repo de tesis (`entity-resolution-nlp`), el manuscrito
 
 ### Manuscrito de tesis
 
-- Carpeta: `~/Documents/Maestria/Tesis/Tesis_Latex/`
-- Archivo principal: `~/Documents/Maestria/Tesis/Tesis_Latex/Tesis_UzielLujan.tex`
-- PDF local actual: `~/Documents/Maestria/Tesis/Tesis_Latex/Tesis_Uziel_EscritoActual.pdf`
-- Versión local sincronizada desde Overleaf el 2026-07-04.
+- Carpeta: `manuscript/`
+- Archivo principal: `manuscript/Tesis_UzielLujan.tex`
+- PDF compilado: `manuscript/out/Tesis_UzielLujan.pdf` (artefacto local ignorado por Git).
+- El manuscrito se versiona en este repositorio; incluye fuentes, bibliografía, figuras, portada y logotipos.
 
 ### Reporte oficial de consultoría
 
@@ -30,24 +30,23 @@ Documento puente entre el repo de tesis (`entity-resolution-nlp`), el manuscrito
 
 ## 2. Estado actual del manuscrito
 
-El manuscrito local ya no corresponde al protocolo viejo: fue sincronizado desde Overleaf y contiene una estructura inicial de tesis.
+El manuscrito versionado contiene la versión actual de la tesis. Se compila de forma autónoma desde `manuscript/`.
 
 Archivos activos desde `Tesis_UzielLujan.tex`:
 
 | Archivo | Estado | Rol actual |
 |---|---|---|
-| `Capitulos/01.tex` | Parcialmente redactado | Introducción, planteamiento, objetivos y contribución |
-| `Capitulos/02.tex` | Parcialmente redactado | Marco teórico y estado del arte; contiene un bloque duplicado viejo al final que debe limpiarse |
-| `Capitulos/03.tex` | Esqueleto | Datos y preprocesamiento |
-| `Capitulos/04.tex` | Esqueleto | Metodología neuronal |
-| `Capitulos/05.tex` | Cronograma | Plan de trabajo; probablemente quedará como histórico o se transformará en estado del proyecto |
-| `Capitulos/06.tex` | Vacío y no incluido | Reservado o descartable |
+| `Capitulos/01.tex` | Primera versión | Introducción, planteamiento, objetivos y contribución |
+| `Capitulos/02.tex` | Primera versión | Marco teórico y estado del arte; requiere revisión bibliográfica |
+| `Capitulos/03.tex` | Redactado | Datos y preprocesamiento |
+| `Capitulos/04.tex` | Redactado | Metodología neuronal Retrieve & Rerank |
+| `Capitulos/05.tex` | Redactado | Resultados y discusión |
+| `Capitulos/06.tex` | Primera versión | Conclusiones, limitaciones y trabajo futuro |
 
 Carpetas del manuscrito:
 
-- `Figuras/`: vacía al momento de la sincronización.
-- `Resultados/`: vacía al momento de la sincronización.
-- `Bibliografia/referencias.bib`: bibliografía inicial, requiere expansión para tesis final.
+- `Figuras/`: diagramas TikZ y figuras de resultados incluidas en el manuscrito.
+- `Bibliografia/referencias.bib`: bibliografía versionada del manuscrito.
 
 ---
 
@@ -91,7 +90,7 @@ Contenido transferible:
   - 11,466 pares positivos finales.
   - 15,283 entidades únicas.
   - 4,605 entidades vinculables.
-  - 10,678 singletons.
+   - 10,678 entidades de una sola base de datos.
 
 Lectura metodológica para tesis:
 
@@ -154,8 +153,8 @@ Resultados ya documentados:
   - `Recall@1=0.9837`.
   - `Recall@5=1.0000`.
   - `MRR=0.9998`.
-  - `Delta_sep=11.28`.
-  - `mu_pos=0.9626`, `mu_neg=0.0094`.
+  - `Delta_sep=11.2609`, promedio no ponderado sobre las seis direcciones cross-source.
+  - La evaluación acumula todos los negativos disponibles por consulta; ya no usa submuestreo aleatorio.
 - Hard Negative Mining sobre `tok_skipnull`:
   - Train: 8,513 positivos + 69,122 hard negatives.
   - Val: 1,851 positivos + 14,415 hard negatives.
@@ -180,7 +179,6 @@ Resultados ya documentados:
 
 Pendientes antes de resultados finales:
 
-- Auditar `Delta_sep`: hoy usa submuestreo uniforme de negativos `K=10` sin seed. Decidir si usar todos los negativos o fijar/documentar seed antes de citar valores definitivos.
 - Implementar/ejecutar ablación de bloques semánticos si se desea una sección de explicabilidad fuerte.
 - Decidir baseline formal con asesor.
 
@@ -226,7 +224,7 @@ Resumen del contrato:
 - Tesis consume la variante canónica `tok_skipnull`.
 - Las cuatro variantes de serialización comparten `record_id` y `entity_id`; solo cambia `text`.
 - Las 514 decisiones manuales son estables ante cambios de serialización, pero no ante cambios de preprocessing.
-- La tesis exporta embeddings hacia consultoría en `$INER_DATA_ROOT/embeddings/tok_skipnull/embeddings.parquet` para habilitar `cos_biencoder` en el JSON consolidado.
+- La tesis exporta embeddings hacia consultoría en `$INER_DATA_ROOT/modeling/embeddings/tok_skipnull/embeddings.parquet` para habilitar `cos_biencoder` en el JSON consolidado.
 
 ---
 

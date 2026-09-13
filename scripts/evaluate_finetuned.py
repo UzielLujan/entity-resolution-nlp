@@ -6,13 +6,13 @@ Métricas por par direccional de bases (A→B y B→A — permutations):
   - candidate_pool_stats: max/mean positives por entidad en el pool
 
 Uso:
-    python scripts/evaluate_finetuned.py --checkpoint beto_mnrl_hpc_v2_tok_skipnull
-    python scripts/evaluate_finetuned.py --checkpoint beto_mnrl_hpc_v2_tok_skipnull --epoch 15
-    python scripts/evaluate_finetuned.py --checkpoint beto_mnrl_hpc_v2_tok_skipnull --split val
+    python scripts/evaluate_finetuned.py --checkpoint beto_mnrl --variant tok_skipnull
+    python scripts/evaluate_finetuned.py --checkpoint beto_mnrl --variant tok_skipnull --epoch 15
+    python scripts/evaluate_finetuned.py --checkpoint beto_mnrl --variant tok_skipnull --split val
     python scripts/evaluate_finetuned.py --checkpoint A B C   (varios runs)
     python scripts/evaluate_finetuned.py --all
 
-Salida: ~/Data/INER/outputs/evaluation/finetuned/finetuned_results_<run>.json
+Salida: $INER_DATA_ROOT/modeling/outputs/evaluation/biencoder/finetuned/<run>.json
 """
 
 import argparse
@@ -44,7 +44,7 @@ def _print_summary(checkpoints: list[str], output_dir: Path) -> None:
     print("RESUMEN — Hit@1, Recall@1, RecallNorm@1, Precision@1, MRR")
     print("=" * 60)
     for ckpt_name in checkpoints:
-        out_path = output_dir / f"finetuned_results_{ckpt_name}.json"
+        out_path = output_dir / f"{ckpt_name}.json"
         if not out_path.exists():
             continue
         data = json.load(open(out_path))
@@ -72,6 +72,8 @@ def main():
                         help="Split a evaluar (default: test)")
     parser.add_argument("--dataset", type=str, default=None,
                         help="Ruta al dataset_split.parquet (default: tesis/splits/tok_skipnull_split.parquet)")
+    parser.add_argument("--output-name", type=str, default=None,
+                        help="Nombre del JSON de salida para un único checkpoint.")
     args = parser.parse_args()
 
     dataset_path = (
@@ -86,6 +88,10 @@ def main():
     if not checkpoints:
         print(f"ERROR: no se encontraron checkpoints con best/")
         return 1
+    if args.output_name and len(checkpoints) != 1:
+        parser.error("--output-name requiere evaluar un único checkpoint")
+    if args.output_name and Path(args.output_name).name != args.output_name:
+        parser.error("--output-name debe ser solo un nombre de archivo")
     if args.all:
         print(f"Checkpoints encontrados: {checkpoints}")
 
@@ -100,7 +106,7 @@ def main():
             k_values=K_VALUES_DEFAULT,
             variant=args.variant,
         )
-        out_path = FINETUNED_DIR / f"finetuned_results_{ckpt_name}.json"
+        out_path = FINETUNED_DIR / (args.output_name or f"{ckpt_name}.json")
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(output, f, ensure_ascii=False, indent=2)
         print(f"\n✓ Resultados guardados en {out_path}")

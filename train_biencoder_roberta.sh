@@ -13,14 +13,17 @@
 # Parámetros desde sbatch (en orden):
 #   $1 TEMPERATURE  default 0.07
 #   $2 RUN_NAME     default roberta_bio_v2
-#   $3 PARQUET      default tesis1/dataset_split.parquet
+#   $3 PARQUET      default modeling/data/tok_skipnull/split.parquet
 #   $4 BATCH_SIZE   default 64
+#   $5 EPOCHS       default 20
+#   $6 MAX_SEQ      default 384
+#   $7 VARIANT      default tok_skipnull
 #
 # Uso típico:
 #   sbatch --job-name=roberta_bio_v2_tok_skipnull train_biencoder_roberta.sh \
 #       0.07 roberta_bio_v2_tok_skipnull \
-#       ~/Data/INER/processed/tesis/output/tok_skipnull/dataset_split.parquet \
-#       64
+#       ~/Data/INER/modeling/data/tok_skipnull/split.parquet \
+#       64 20 384 tok_skipnull
 
 set -e
 mkdir -p logs
@@ -31,13 +34,18 @@ echo "Inicio: $(date)"
 echo "========================================================"
 
 export PATH="/opt/anaconda_python311/bin:$PATH"
+set -a
+. ./.env
+set +a
+: "${INER_DATA_ROOT:?INER_DATA_ROOT debe estar definido en .env}"
 
 TEMPERATURE=${1:-"0.07"}
 RUN_NAME=${2:-"roberta_bio_v2"}
-PARQUET=${3:-"~/Data/INER/processed/tesis1/dataset_split.parquet"}
+PARQUET=${3:-"$INER_DATA_ROOT/modeling/data/tok_skipnull/split.parquet"}
 BATCH_SIZE=${4:-"64"}
 EPOCHS=${5:-"20"}
 MAX_SEQ=${6:-"384"}
+VARIANT=${7:-"tok_skipnull"}
 
 echo "Config: model=RoBERTa-biomedical temp=$TEMPERATURE batch=$BATCH_SIZE epochs=$EPOCHS max_seq=$MAX_SEQ run=$RUN_NAME"
 echo "Dataset: $PARQUET"
@@ -45,14 +53,15 @@ echo "========================================================"
 
 ~/.conda/envs/tesis/bin/python -u scripts/run_train_biencoder.py \
     --model RoBERTa-biomedical \
-    --dataset $PARQUET \
-    --output ~/Data/INER/models/checkpoints/$RUN_NAME \
-    --epochs $EPOCHS \
-    --batch-size $BATCH_SIZE \
+    --variant "$VARIANT" \
+    --dataset "$PARQUET" \
+    --output "$INER_DATA_ROOT/modeling/models/biencoder/$VARIANT/$RUN_NAME" \
+    --epochs "$EPOCHS" \
+    --batch-size "$BATCH_SIZE" \
     --n-aug 0 \
-    --max-seq-length $MAX_SEQ \
+    --max-seq-length "$MAX_SEQ" \
     --base-lr 2e-5 \
-    --temperature $TEMPERATURE \
+    --temperature "$TEMPERATURE" \
     --patience 3 \
     --only-best
 
