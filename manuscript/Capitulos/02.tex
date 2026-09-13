@@ -1,0 +1,391 @@
+\chapter{Marco teórico y estado del arte}
+
+% 2.1 EL PROBLEMA MATEMÁTICO
+
+\section{El problema de ligado de registros (\textit{Record Linkage})}
+
+El ligado de registros (\textit{Record Linkage}) constituye un problema fundamental para la integración de información proveniente de fuentes de datos heterogéneas y fragmentadas. En la literatura de ciencias de la computación, particularmente en las áreas de bases de datos e integración de información, este problema se relaciona estrechamente con la resolución o emparejamiento de entidades (\textit{Entity Resolution} o \textit{Entity Matching})~\cite{li2020,cappuzzo2020}. En ambos casos, el objetivo es determinar si dos o más registros provenientes de distintas fuentes representan a la misma entidad del mundo real, especialmente cuando no existe un identificador único global y confiable. La complejidad del problema se incrementa ante la presencia de errores tipográficos, variaciones en la grafía, campos faltantes y diferencias en los formatos de almacenamiento, lo que convierte su resolución en un desafío estadístico y computacional relevante.
+
+Desde una perspectiva histórica, el concepto fue introducido formalmente por Dunn~\cite{dunn1946} en 1946, quien visualizó el ligado de registros como una herramienta esencial para la creación de un sistema de información longitudinal que permitiera el seguimiento de individuos a lo largo de su ciclo de vida. No obstante, la formalización matemática y probabilística del problema no se consolidaría sino hasta 1969, con el trabajo seminal de Fellegi y Sunter~\cite{fellegi1969}. Su modelo establece un marco de decisión basado en la teoría de pruebas de hipótesis, donde cada par de registros es clasificado en una de tres categorías: enlace (\textit{link}), no enlace (\textit{non-link}) o caso indeciso (\textit{clerical review}), basándose en la probabilidad de observar ciertas concordancias en los atributos dado que el par es realmente un duplicado o no.
+
+Matemáticamente, sean $A$ y $B$ dos conjuntos de registros, con $n=|A|$ y $m=|B|$, y sea $e(r)$ la entidad del mundo real representada por un registro $r$. El conjunto de enlaces verdaderos puede expresarse como la relación
+
+\[
+M=\{(a,b)\in A\times B : e(a)=e(b)\}.
+\]
+
+El objetivo del ligado de registros es estimar $M$ a partir de los atributos observados, dado que la identidad representada por cada registro no se conoce de manera directa. Una estrategia exhaustiva requiere evaluar los $n\cdot m$ pares contenidos en el producto cartesiano $A\times B$, por lo que su complejidad es $\mathcal{O}(nm)$. Cuando ambas bases tienen tamaños comparables, es decir, $n\approx m\approx N$, esta complejidad puede expresarse como $\mathcal{O}(N^2)$. En contextos institucionales como el del INER, este crecimiento representa una barrera computacional que exige mecanismos eficientes para reducir el espacio de candidatos.
+
+En la literatura contemporánea, la resolución de entidades se utiliza como un concepto amplio que abarca tareas relacionadas, como el ligado de registros entre distintas fuentes y la deduplicación dentro de una misma base de datos~\cite{christen2012}. En esta tesis, el problema se aborda desde una perspectiva semántica, con el objetivo de superar las limitaciones de la comparación sintáctica mediante representaciones vectoriales aprendidas.
+
+% 2.2 ENFOQUES CLÁSICOS Y MÉTRICAS DE SIMILITUD LÉXICA
+%
+\section{Enfoques clásicos y métricas de similitud léxica}
+
+Históricamente, el tratamiento del ligado de registros ha dependido de la comparación sintáctica de cadenas de caracteres (\textit{strings}). Estos métodos, se dividen principalmente en métricas basadas en edición, comparadores de caracteres y métodos basados en tokens. Su objetivo es cuantificar la discrepancia entre dos cadenas para decidir si representan un mismo valor.
+
+\subsection{Métricas basadas en edición y comparadores}
+
+\paragraph{Distancia de Levenshtein.}
+La distancia de Levenshtein~\cite{levenshtein1966} cuantifica la diferencia entre dos cadenas como el número mínimo de inserciones, eliminaciones o sustituciones de caracteres necesarias para transformar una en la otra. Para expresar el resultado como una similitud en el intervalo $[0,1]$, la distancia puede dividirse entre la longitud de la cadena más larga y restarse de 1; de este modo, una similitud de 1 indica una coincidencia exacta.
+
+Una variante relevante es la distancia de Damerau-Levenshtein~\cite{damerau1964}, que incorpora la transposición de caracteres adyacentes como una operación elemental. La Tabla~\ref{tab:ejemplo_distancias_edicion} muestra la diferencia entre ambas métricas ante un error común de mecanografía.
+
+\begin{table}[H]
+\centering
+\caption{Ejemplo de las distancias de Levenshtein y Damerau-Levenshtein}
+\label{tab:ejemplo_distancias_edicion}
+\small
+\begin{tabular}{>{\raggedright\arraybackslash}p{2.6cm}
+                >{\raggedright\arraybackslash}p{2.5cm}
+                >{\raggedright\arraybackslash}p{4.5cm}
+                >{\raggedright\arraybackslash}p{3.8cm}}
+\toprule
+\textbf{Métrica} & \textbf{Cadenas} & \textbf{Interpretación} & \textbf{Cálculo} \\
+\midrule
+Levenshtein
+  & \texttt{MARIA} $\rightarrow$ \texttt{MAIRA}
+  & Requiere sustituir \texttt{R} por \texttt{I} y \texttt{I} por \texttt{R}. Dos operaciones de edición.
+  & Distancia: $d=2$
+
+    \vspace{2pt}
+    $\operatorname{sim}=1-\dfrac{2}{5}$
+
+    \vspace{2pt}
+    $\operatorname{sim}=0.60$ \\
+\addlinespace
+Damerau-Levenshtein
+  & \texttt{MARIA} $\rightarrow$ \texttt{MAIRA}
+  & Reconoce el intercambio \texttt{RI} $\rightarrow$ \texttt{IR} como una sola transposición.
+  & Distancia: $d=1$
+
+    \vspace{2pt}
+    $\operatorname{sim}=1-\dfrac{1}{5}$
+
+    \vspace{2pt}
+    $\operatorname{sim}=0.80$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Índice de Jaro y Jaro-Winkler.}
+El índice de Jaro~\cite{jaro1989} mide la similitud entre dos cadenas considerando la cantidad de caracteres coincidentes, su posición relativa y las transposiciones necesarias para alinearlos. Su valor pertenece al intervalo $[0,1]$, donde 1 indica una coincidencia exacta. Jaro-Winkler~\cite{winkler1990} extiende esta medida y otorga mayor peso a las cadenas que comparten los primeros caracteres, una propiedad útil para comparar nombres propios.
+
+La Tabla~\ref{tab:ejemplo_jaro_winkler} ilustra el efecto de esta corrección. Las cadenas \texttt{MARTHA} y \texttt{MARHTA} contienen los mismos caracteres, pero presentan una transposición. Jaro les asigna una similitud alta y Jaro-Winkler la incrementa porque ambas comienzan con el prefijo \texttt{MAR}.
+
+\begin{table}[H]
+\centering
+\caption{Ejemplo de los índices de Jaro y Jaro-Winkler (MARTHA VS MARHTA)}
+\label{tab:ejemplo_jaro_winkler}
+\small
+\begin{tabular}{>{\raggedright\arraybackslash}p{2.7cm}
+                >{\raggedright\arraybackslash}p{5.6cm}
+                >{\raggedright\arraybackslash}p{5.0cm}}
+\toprule
+\textbf{Índice} & \textbf{Información considerada} & \textbf{Cálculo} \\
+\midrule
+Jaro
+  & Coincidencia de caracteres y transposición entre \texttt{TH} y \texttt{HT}.
+  & Coincidencias: $m=6$
+
+    Transposiciones: $t=1$
+
+    \vspace{2pt}
+    $J=\dfrac{1}{3}\left(1+1+\dfrac{5}{6}\right)$
+
+    \vspace{2pt}
+    $J=\dfrac{17}{18}\approx0.944$ \\
+\addlinespace
+Jaro-Winkler
+  & Puntuación de Jaro más el peso adicional por el prefijo compartido \texttt{MAR}.
+  & Longitud del prefijo: $\ell=3$
+
+    Factor de escala: $p=0.1$
+
+    \vspace{2pt}
+    $JW=0.944+3(0.1)(1-0.944)$
+
+    \vspace{2pt}
+    $JW\approx0.961$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Métodos basados en $q$-gramas.}
+Por otro lado, enfoques basados en fragmentos de texto o $q$-gramas~\cite{ukkonen1992} permiten una comparación más flexible al descomponer las cadenas en sub-secuencias de longitud fija, facilitando la identificación de coincidencias parciales incluso cuando la edición acumulada es alta.
+
+\subsection{Modelos probabilísticos y pesos de importancia}
+Más allá de la comparación de una sola cadena, el modelo de Fellegi-Sunter~\cite{fellegi1969} proporcionó la base teórica para combinar múltiples comparaciones de atributos. En este modelo, cada atributo recibe un peso basado en su capacidad de discriminación; por ejemplo, una coincidencia en un apellido poco común tiene un peso mayor que una coincidencia en un nombre frecuente. En contextos textuales, también pueden emplearse técnicas de ponderación de términos como TF-IDF (\textit{Term Frequency-Inverse Document Frequency})~\cite{salton1988}, que permiten identificar qué palabras dentro de un registro son más informativas para el proceso de vinculación.
+
+\subsection{Limitaciones de la comparación sintáctica}
+Las métricas sintácticas descritas anteriormente resultan útiles cuando las diferencias entre los registros se limitan a variaciones superficiales en su escritura. Sin embargo, sus comparaciones se derivan principalmente de la coincidencia de caracteres o tokens y no representan explícitamente el significado ni el contexto de la información~\cite{christen2012,barlaug2021}. En consecuencia, dos valores con formas léxicas distintas pueden recibir una similitud baja aun cuando sean semánticamente equivalentes; de manera inversa, dos cadenas similares pueden corresponder a entidades diferentes. En las bases de datos clínicas, la variación terminológica, las abreviaturas y la presencia de texto libre acentúan esta limitación. Esta brecha motiva la transición hacia representaciones vectoriales aprendidas y modelos neuronales para el emparejamiento de entidades~\cite{barlaug2021,li2020}.
+
+% 2.3 EL CAMBIO DE PARADIGMA: APRENDIZAJE PROFUNDO Y MODELOS DE LENGUAJE PRE-ENTRENADOS
+
+\section{Aprendizaje profundo y modelos de lenguaje pre-entrenados}
+
+Los avances recientes en los enfoques neuronales para la resolución de entidades se han beneficiado de la evolución de las representaciones vectoriales en el procesamiento de lenguaje natural (PLN)~\cite{barlaug2021}. A diferencia de las métricas léxicas descritas anteriormente, los \textit{embeddings} densos codifican patrones distribucionales en espacios continuos, lo que permite aprovechar similitudes que no se reducen a coincidencias exactas de caracteres o tokens~\cite{li2020}. Sin embargo, las ventajas del aprendizaje profundo no son uniformes para todos los tipos de datos: el estudio sistemático de Mudgal et al.~\cite{mudgal2018} encontró sus principales beneficios en problemas de emparejamiento con registros textuales o ruidosos, mientras que en datos estructurados y limpios los métodos convencionales podían conservar un desempeño competitivo.
+
+\subsection{De representaciones dispersas a vectores densos}
+Las representaciones tradicionales del texto, como los vectores de conteos y TF-IDF, asignan dimensiones independientes a los términos del vocabulario, lo que produce vectores dispersos de alta dimensionalidad~\cite{salton1988}. Aunque estas representaciones permiten cuantificar la importancia y coincidencia de los términos, no construyen por sí mismas un espacio continuo en el que palabras relacionadas ocupen posiciones cercanas.
+
+Uno de los antecedentes fundamentales del modelado semántico mediante redes neuronales es el modelo de lenguaje probabilístico propuesto por Bengio et al.~\cite{bengio2003}, que permitió aprender representaciones distribuidas de palabras conjuntamente con la función de probabilidad de secuencias textuales.
+
+\paragraph{Representaciones estáticas.}
+Este paradigma se consolidó con Word2Vec~\cite{mikolov2013}, que aprende vectores a partir de los contextos locales en los que aparecen las palabras, y con GloVe~\cite{pennington2014}, que incorpora estadísticas globales de coocurrencia del corpus. En ambos casos, las regularidades lingüísticas se representan mediante relaciones geométricas en un espacio continuo.
+
+FastText~\cite{bojanowski2017} extendió este enfoque al representar cada palabra a partir de unidades subléxicas o $n$-gramas de caracteres. Esta composición permite obtener representaciones para palabras poco frecuentes o no observadas durante el entrenamiento y aprovechar regularidades morfológicas, lo que resulta útil en vocabularios amplios y especializados.
+
+\paragraph{Representaciones contextualizadas mediante redes recurrentes.}
+A pesar de sus diferencias, Word2Vec, GloVe y FastText producen representaciones estáticas: una palabra recibe el mismo vector independientemente del contexto en que aparezca. Así, el término ``alta'' tendría una única representación aunque pudiera referirse al egreso hospitalario o describir una magnitud elevada.
+
+Los modelos contextuales abordaron esta limitación al calcular la representación de cada palabra en función de la secuencia completa. ELMo~\cite{peters2018}, basado en un modelo de lenguaje bidireccional con redes LSTM, genera vectores que cambian según el contexto y permiten modelar fenómenos como la polisemia. Esta distinción entre representaciones estáticas y contextualizadas proporciona el antecedente conceptual para las arquitecturas basadas en atención descritas en la subsección siguiente.
+
+\subsection{La arquitectura Transformer y el mecanismo de atención}
+La arquitectura Transformer, propuesta por Vaswani et al.~\cite{vaswani2017}, estableció un modelo de procesamiento de secuencias basado exclusivamente en mecanismos de atención, prescindiendo de estructuras recurrentes y convolucionales. Una de sus operaciones centrales es la atención de producto punto escalado (\textit{Scaled Dot-Product Attention}). En el caso de la autoatención, las representaciones de una misma secuencia se proyectan linealmente en tres matrices: consultas ($Q$), claves ($K$) y valores ($V$). La salida se calcula como una suma ponderada de los valores, donde los pesos reflejan la compatibilidad entre cada consulta y las claves:
+
+\begin{equation}
+\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{Q K^\top}{\sqrt{d_k}}\right) V
+\label{eq:scaled_dot_product_attention}
+\end{equation}
+
+donde $d_k$ es la dimensionalidad de las claves. El factor $\sqrt{d_k}$ evita que los productos punto alcancen magnitudes que saturen la función \textit{softmax} y produzcan gradientes demasiado pequeños. Esta operación permite calcular representaciones contextuales al ponderar la relevancia de cada token respecto de los demás elementos de la secuencia.
+
+El Transformer emplea además atención multicabeza (\textit{Multi-Head Attention}), que ejecuta varias operaciones de atención en paralelo sobre proyecciones lineales distintas de $Q$, $K$ y $V$, y concatena sus resultados:
+
+\begin{equation}
+\text{MultiHead}(Q, K, V) = \text{Concat}(\text{head}_1, \dots, \text{head}_h) W^O
+\label{eq:multihead}
+\end{equation}
+
+donde $\text{head}_i = \text{Attention}(Q W_i^Q, K W_i^K, V W_i^V)$. En registros tabulares serializados, este mecanismo permite que los tokens asociados con distintos atributos y valores intercambien información dentro de una representación contextual conjunta~\cite{li2020}.
+
+\subsection{Modelos de lenguaje pre-entrenados (PLMs)}
+La aplicación de Transformers a tareas de procesamiento de lenguaje natural se fortaleció mediante el preentrenamiento sobre corpus textuales de gran escala. Modelos como BERT (\textit{Bidirectional Encoder Representations from Transformers})~\cite{devlin2019} aprenden representaciones bidireccionales mediante objetivos autosupervisados y posteriormente pueden adaptarse a tareas específicas mediante ajuste fino (\textit{fine-tuning}). RoBERTa~\cite{liu2019} mostró que modificaciones en los datos, los hiperparámetros y el procedimiento de preentrenamiento podían mejorar el desempeño de este paradigma.
+
+En esta tesis, los modelos preentrenados proporcionan el punto de partida para procesar las representaciones textuales de los registros del INER. El ajuste posterior adapta estos modelos a las dos tareas del sistema: construir un espacio métrico para la recuperación de candidatos y clasificar los pares de registros formados a partir de ellos.
+
+
+% 2.4 ESTADO DEL ARTE EN LIGADO DE REGISTROS NEURONAL (SBERT Y DITTO)
+
+\section{Estado del arte en ligado de registros}
+
+La aplicación directa de modelos de lenguaje densos para evaluar el producto cartesiano de dos bases de datos masivas resulta computacionalmente prohibitiva. El paso de inferencia (\textit{Forward Pass}) de un Transformer basado en atención cruzada exhaustiva posee una complejidad cuadrática respecto a la longitud de la secuencia, lo que hace inviable calcular la similitud de millones de pares. Para mitigar este cuello de botella computacional, el estado del arte ha convergido hacia el paradigma \textit{Retrieve \& Re-rank} (Recuperación y Re-ordenamiento), una arquitectura de dos fases que equilibra eficiencia y precisión semántica.
+
+\subsection{Aprendizaje métrico y recuperación eficiente con Bi-Encoders}
+
+\paragraph{Aprendizaje métrico.}
+El aprendizaje métrico busca construir un espacio de representación en el que la proximidad entre dos objetos refleje una relación relevante para la tarea~\cite{kulis2013}. En el ligado de registros, esta relación corresponde a la pertenencia a una misma entidad. Sea $\sigma$ la función que transforma un registro en una secuencia textual serializada y sea $\mathcal{X}$ el conjunto de secuencias que pueden utilizarse como entrada del modelo. Para dos registros $a\in A$ y $b\in B$, se define
+
+\[
+x_a=\sigma(a),
+\qquad
+x_b=\sigma(b).
+\]
+
+El codificador neuronal es una función parametrizada
+
+\[
+f_\theta:\mathcal{X}\longrightarrow\mathbb{R}^{d},
+\]
+
+que proyecta cada secuencia en un vector de dimensión fija. En consecuencia,
+
+\[
+\mathbf{z}_a=f_\theta(x_a),
+\qquad
+\mathbf{z}_b=f_\theta(x_b).
+\]
+
+La función $f_\theta$ no constituye por sí misma el espacio de representación; este corresponde a su imagen
+
+\[
+\mathcal{Z}_\theta
+=f_\theta(\mathcal{X})
+\subseteq\mathbb{R}^{d},
+\]
+
+cuya geometría depende de los parámetros aprendidos $\theta$. Cada elemento de $\mathcal{Z}_\theta$ es, por tanto, un \textit{embedding} a nivel de registro: una representación vectorial densa y aprendida que sintetiza la información contextual capturada por el Transformer a partir de la secuencia serializada. A diferencia de las representaciones estáticas de palabras descritas previamente, estos vectores representan registros completos y dependen tanto de su contenido como de la estructura proporcionada durante la serialización. De este modo, $\mathbf{z}_a$ y $\mathbf{z}_b$ son representaciones densas de $a$ y $b$, respectivamente, y sus relaciones geométricas codifican la similitud relevante para la tarea de ligado.
+
+Al dotar $\mathcal{Z}_\theta$ con una función de similitud $\operatorname{sim}( \cdot)$, la similitud entre dos entradas puede escribirse como
+
+\[
+\operatorname{sim}_\theta(x_a,x_b)
+=\operatorname{sim}\!\left(f_\theta(x_a),f_\theta(x_b)\right)
+=\operatorname{sim}(\mathbf{z}_a,\mathbf{z}_b).
+\]
+
+El entrenamiento procura que dos registros de la misma entidad tengan una similitud alta en este espacio, mientras que los registros de entidades diferentes ocupen posiciones más alejadas:
+
+\[
+e(a)=e(b)\Rightarrow
+\operatorname{sim}_\theta(x_a,x_b)\ \text{alta},
+\qquad
+e(a)\neq e(b)\Rightarrow
+\operatorname{sim}_\theta(x_a,x_b)\ \text{baja}.
+\]
+
+En este enfoque no necesariamente se aprende una función de distancia nueva. En particular, el sistema puede utilizar una medida fija, como la similitud coseno, mientras aprende $f_\theta$ para organizar los registros dentro del espacio de representación. La estrategia de optimización empleada para obtener esta organización se describe posteriormente en la subsección dedicada al aprendizaje contrastivo.
+
+\paragraph{Bi-Encoders y redes siamesas.}
+Una red siamesa está formada por dos ramas que comparten arquitectura y parámetros, de modo que ambas aplican la misma función de codificación a entradas diferentes~\cite{bromley1993}. El término Bi-Encoder indica que los dos elementos de una comparación se codifican de forma independiente; cuando ambas ramas comparten sus parámetros, como en este trabajo, el Bi-Encoder constituye además una arquitectura siamesa.
+
+Sentence-BERT (SBERT), propuesto por Reimers y Gurevych~\cite{reimers2019}, adapta modelos preentrenados como BERT a esta configuración. Cada secuencia se procesa por separado y las representaciones de sus tokens se agregan mediante una operación de \textit{pooling} para obtener un vector de dimensión fija. Formalmente, el codificador puede expresarse como $f_\theta=p\circ T_\theta$, donde $T_\theta$ es el Transformer que produce representaciones contextualizadas de los tokens y $p$ es la operación de \textit{pooling}. El mismo codificador se aplica de manera independiente a $x_a$ y $x_b$; sus tokens no interactúan directamente durante esta codificación. La comparación ocurre únicamente después de obtener $\mathbf{z}_a$ y $\mathbf{z}_b$, lo que permite calcular y almacenar cada representación una sola vez.
+
+Reimers y Gurevych evaluaron tres estrategias de agregación: la media de las representaciones de salida (MEAN), su máximo por dimensión (MAX) y la representación asociada con el token \texttt{[CLS]}. MEAN fue su configuración predeterminada y obtuvo el mejor desempeño en la ablación presentada, aunque su ventaja fue reducida bajo el objetivo de clasificación y más clara bajo el objetivo de regresión semántica~\cite{reimers2019}. Por esta razón, en este trabajo $p$ corresponde a una operación de \textit{mean pooling}.
+
+\input{Figuras/bi_encoder_siamese}
+
+\paragraph{Recuperación de candidatos.}
+Una vez codificados los registros, su similitud puede calcularse mediante el coseno entre sus representaciones. SBERT utiliza esta función para comparar embeddings durante la inferencia en tareas de similitud textual semántica~\cite{reimers2019}. El coseno depende del ángulo entre los vectores y es invariante ante cambios positivos en su magnitud; por tanto, la comparación se basa en la orientación relativa que las representaciones adquieren en el espacio aprendido:
+
+\[
+\operatorname{sim}_\theta(x_a,x_b)=
+\frac{\mathbf{z}_a^{\top}\mathbf{z}_b}
+{\lVert\mathbf{z}_a\rVert_2\lVert\mathbf{z}_b\rVert_2}.
+\]
+
+La normalización $L_2$ proyecta los embeddings sobre la hiperesfera unitaria y elimina el efecto de su magnitud, de modo que el coseno cuantifica únicamente su orientación relativa~\cite{manning2008}.
+Sean
+\[
+\widehat{\mathbf{z}}_a=\mathbf{z}_a/\lVert\mathbf{z}_a\rVert_2 \quad \text{y} \quad \widehat{\mathbf{z}}_b=\mathbf{z}_b/\lVert\mathbf{z}_b\rVert_2
+\]
+
+los embeddings normalizados. Entonces,
+
+\[
+\operatorname{sim}_\theta(x_a,x_b)
+=\widehat{\mathbf{z}}_a^{\top}\widehat{\mathbf{z}}_b,
+\qquad
+\left\lVert\widehat{\mathbf{z}}_a-\widehat{\mathbf{z}}_b\right\rVert_2^2
+=2-2\operatorname{sim}_\theta(x_a,x_b).
+\]
+
+Por lo tanto, sobre embeddings normalizados, maximizar la similitud coseno, maximizar el producto punto y minimizar la distancia euclidiana producen el mismo ordenamiento de vecinos. Esta equivalencia no se extiende a cualquier función de distancia. Por ejemplo, SBERT reportó resultados aproximadamente equivalentes al utilizar la distancia Manhattan negativa, pero se trata de un resultado empírico específico de sus experimentos y no de una identidad matemática general~\cite{reimers2019}. En este trabajo se adopta el coseno por su interpretación angular y por su compatibilidad directa con la normalización y la recuperación vectorial.
+
+De esta forma, para un registro de consulta $a\in A$, la etapa de recuperación permite seleccionar los $K$ registros de $B$ con mayor similitud:
+
+\[
+R_K(a)=
+\underset{b\in B}{\operatorname{TopK}}
+\operatorname{sim}_\theta(x_a,x_b).
+\]
+
+Los elementos de $R_K(a)$ son los registros candidatos recuperados.
+
+\paragraph{Eficiencia computacional.}
+Un modelo que procesa conjuntamente cada par del producto cartesiano requiere $n\cdot m$ inferencias profundas. En cambio, un Bi-Encoder necesita únicamente $n+m$ codificaciones, porque cada registro se representa una sola vez y los vectores resultantes pueden reutilizarse~\cite{reimers2019}. Una búsqueda exacta todavía puede requerir $n\cdot m$ operaciones de similitud vectorial, aunque estas son considerablemente más económicas que las inferencias de un Transformer. Cuando se emplean índices de búsqueda aproximada de vecinos, la recuperación puede realizarse sin recorrer exhaustivamente toda la base. Finalmente, al conservar solo $K$ candidatos por consulta, la etapa de clasificación posterior evalúa como máximo $n\cdot K$ pares, con $K\ll m$.
+
+\subsection{Clasificación fina con Cross-Encoders}
+
+\paragraph{Procesamiento conjunto del par.}
+La etapa de recuperación produce, para cada registro de consulta $a\in A$, un conjunto $R_K(a)\subseteq B$ de registros candidatos. Para cada $b\in R_K(a)$ se forma entonces un par de secuencias serializadas $(x_a,x_b)$. A diferencia del Bi-Encoder, que aplica $f_\theta$ de forma independiente a cada entrada, un Cross-Encoder construye una única secuencia conjunta:
+
+\[
+x_{a,b}
+=
+\texttt{[CLS]}
+\oplus x_a
+\oplus \texttt{[SEP]}
+\oplus x_b
+\oplus \texttt{[SEP]},
+\]
+
+donde $\oplus$ representa la concatenación. Esta secuencia se procesa en una sola pasada mediante un Transformer $T_\phi$:
+
+\[
+\mathbf H_{a,b}
+=
+T_\phi(x_{a,b})
+\in\mathbb R^{L\times h},
+\]
+
+donde $L$ es la longitud total de la secuencia concatenada y $h$ la dimensión de sus representaciones ocultas. En consecuencia, el modelo no produce primero dos embeddings independientes, sino una representación contextualizada que depende simultáneamente de ambos registros.
+
+\paragraph{Interacciones cruzadas mediante autoatención.}
+En cada capa del Transformer, las consultas, claves y valores se calculan a partir de todos los tokens de la secuencia conjunta~\cite{vaswani2017,devlin2019}. Si se omiten los tokens especiales para simplificar la notación, la matriz de pesos de atención puede representarse por bloques como
+
+\[
+\mathbf A
+=
+\begin{pmatrix}
+\mathbf A_{aa} & \mathbf A_{ab} \\
+\mathbf A_{ba} & \mathbf A_{bb}
+\end{pmatrix}.
+\]
+
+Los bloques diagonales $\mathbf A_{aa}$ y $\mathbf A_{bb}$ representan interacciones entre tokens del mismo registro. Los bloques $\mathbf A_{ab}$ y $\mathbf A_{ba}$ contienen interacciones cruzadas: permiten que un token de $x_a$ atienda a los tokens de $x_b$ y viceversa. Por ejemplo, el valor de un atributo clínico en un registro puede contextualizarse directamente respecto del nombre del atributo y del valor correspondiente en el otro registro.
+
+Aunque estas interacciones son cruzadas entre registros, el mecanismo continúa siendo autoatención, porque las matrices de consultas, claves y valores se derivan de una misma secuencia concatenada. No se trata de una capa de \textit{cross-attention} separada, como la utilizada entre el codificador y el decodificador de otras arquitecturas.
+
+\paragraph{Clasificación del par.}
+DITTO aplica esta estrategia al emparejamiento de entidades: serializa los atributos mediante los tokens \texttt{[COL]} y \texttt{[VAL]}, concatena los dos registros y utiliza la representación contextualizada de \texttt{[CLS]} para realizar una clasificación binaria~\cite{li2020}. Sea
+
+\[
+\mathbf h_{a,b}
+=
+\mathbf H_{a,b}^{[\texttt{CLS}]}
+\in\mathbb R^h
+\]
+
+la representación final del token \texttt{[CLS]}. El Cross-Encoder produce un logit escalar
+
+\[
+\ell_\phi(x_a,x_b)
+=
+\mathbf w_\phi^\top\mathbf h_{a,b}+b_\phi,
+\]
+
+y una puntuación en el intervalo $[0,1]$:
+
+\[
+p_\phi(y_{a,b}=1\mid x_a,x_b)
+=
+\operatorname{sigmoid}\!\left(\ell_\phi(x_a,x_b)\right),
+\]
+
+donde $y_{a,b}=1$ indica que $e(a)=e(b)$. La decisión final se obtiene comparando esta puntuación con un umbral seleccionado sobre datos de validación. La salida debe interpretarse como una probabilidad estimada por el modelo; su calibración no está garantizada únicamente por aplicar la función sigmoide.
+
+\paragraph{Expresividad y costo computacional.}
+La representación $\mathbf h_{a,b}$ es específica del par: cambia si se sustituye cualquiera de los dos registros. Esta propiedad permite modelar coincidencias, contradicciones y correspondencias finas entre atributos antes de reducir la información a un único vector. En el Bi-Encoder, por el contrario, cada registro debe comprimirse sin conocer el elemento con el que será comparado.
+
+Esta mayor expresividad impide precalcular y reutilizar una representación independiente para cada registro. El Cross-Encoder requiere una inferencia por cada par y su autoatención opera sobre una secuencia de longitud aproximada $L_a+L_b$, con costo cuadrático respecto de esa longitud. Por esta razón se aplica únicamente a los pares formados con los candidatos recuperados previamente: evalúa como máximo $n\cdot K$ pares en lugar de los $n\cdot m$ elementos del producto cartesiano.
+
+
+% 2.5 ESTRATEGIA DE ENTRENAMIENTO MODERNAS (MNRL y DA)
+
+\section{Estrategias modernas de optimización: Aprendizaje contrastivo y aumento de datos}
+
+El entrenamiento de arquitecturas neuronales para el ligado de registros enfrenta un desafío estadístico fundamental: el desbalance extremo de clases. En el producto cartesiano de dos bases de datos, la inmensa mayoría de los pares corresponden a entidades distintas, mientras que las coincidencias reales son escasas. Sin un esquema adecuado de muestreo o ponderación, la contribución de los pares negativos puede dominar el objetivo de entrenamiento. Dos estrategias complementarias ante este problema y la variabilidad de los registros son el aprendizaje contrastivo, que permite aprovechar múltiples comparaciones negativas, y el aumento de datos, que expone al modelo a perturbaciones que preservan la identidad.
+
+\subsection{Aprendizaje contrastivo y \textit{Multiple Negatives Ranking Loss}}
+El objetivo del aprendizaje contrastivo en la resolución de entidades es construir el espacio de representación de tal forma que los registros de una misma entidad tengan embeddings próximos, mientras que los de entidades diferentes queden separados.
+
+Una formulación eficiente para este propósito es la función de pérdida \textit{Multiple Negatives Ranking Loss} (MNRL). La estrategia de reutilizar como negativos las respuestas pertenecientes a otros ejemplos del mismo lote fue introducida por Henderson et al.~\cite{henderson2017} para entrenar representaciones destinadas a la recuperación eficiente de respuestas. La minería de negativos consiste en seleccionar, para cada registro de consulta, ejemplos de entidades distintas que el modelo debe aprender a separar. Cuando se eligen registros especialmente similares a la consulta, pero con una identidad diferente, se denominan negativos difíciles. MNRL reduce la necesidad de seleccionar explícitamente un negativo para cada consulta al reutilizar los registros positivos asociados con las demás consultas del lote como negativos en lote (\textit{in-batch negatives}).
+
+Dado un lote de tamaño $M$ compuesto por pares positivos $\{(a_i,b_i)\}_{i=1}^{M}$, la función considera $b_i$ como el registro positivo de la consulta $a_i$ y los elementos $b_j$, con $j\neq i$, como registros negativos. Formalmente:
+
+\begin{equation}
+\mathcal{L}_{\text{MNRL}}
+=
+-\frac{1}{M}\sum_{i=1}^{M}
+\log
+\frac{
+\exp\!\left(\operatorname{sim}_\theta(x_{a_i},x_{b_i})/\tau\right)
+}{
+\sum_{j=1}^{M}
+\exp\!\left(\operatorname{sim}_\theta(x_{a_i},x_{b_j})/\tau\right)
+}
+\label{eq:mnrl}
+\end{equation}
+
+donde $\operatorname{sim}_\theta$ es la similitud inducida por el Bi-Encoder y $\tau>0$ es un hiperparámetro de temperatura. Los valores pequeños de $\tau$ amplifican las diferencias entre similitudes y producen una distribución más concentrada, mientras que los valores mayores la suavizan.
+
+Cada registro de consulta se compara así con $M-1$ negativos sin tener que incorporarlos como pares adicionales al lote. Sin embargo, la estrategia supone que $b_j$ representa una entidad distinta de $a_i$ para todo $j\neq i$. Si esta condición no se cumple, una coincidencia real se convierte en un falso negativo y el objetivo empuja erróneamente sus representaciones en direcciones opuestas. Por ello, la composición del lote debe controlar las identidades repetidas. MNRL tampoco excluye el uso complementario de minería de negativos difíciles cuando se requieren ejemplos más informativos.
+
+\subsection{Aumento de datos (\textit{Data Augmentation}) en dominios tabulares}
+La robustez del modelo depende de su capacidad para generalizar ante variaciones no observadas durante el entrenamiento. En el contexto de los expedientes clínicos del INER, la información tabular presenta errores tipográficos, campos nulos y discrepancias de formato, fenómeno referido en este trabajo como ``llaves rotas''.
+
+El aumento de datos busca favorecer la robustez ante estas perturbaciones mediante transformaciones adaptadas al texto. Snippext estudió operadores como la inserción, eliminación, sustitución e intercambio de tokens, además de proponer MixDA para interpolar las representaciones de los ejemplos originales y aumentados~\cite{miao2020}.
+
+En el emparejamiento de entidades, DITTO aplicó este principio a registros serializados mediante la eliminación de fragmentos de tokens, la eliminación de atributos completos y el intercambio del orden de los dos registros del par~\cite{li2020}. Estas transformaciones buscan evitar que el modelo dependa de una única señal y favorecer su robustez ante valores faltantes, tokens ausentes o variaciones en el orden de los atributos. Al aplicarse en aprendizaje supervisado, deben conservar la etiqueta y producir ejemplos plausibles respecto del proceso real de captura; de lo contrario, pueden introducir ruido de etiqueta o favorecer invariancias que no corresponden al dominio. Por tanto, el aumento de datos constituye una hipótesis de regularización cuya utilidad depende de la fidelidad con que las perturbaciones sintéticas representen la variabilidad observada. Su adaptación al dominio clínico y su evaluación experimental se describen en los capítulos posteriores.

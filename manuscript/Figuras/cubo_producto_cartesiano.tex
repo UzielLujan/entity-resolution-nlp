@@ -1,0 +1,69 @@
+% Diagrama del espacio de búsqueda O(n^3)
+% Tres bases de datos como ejes del cubo; cada cara = producto cartesiano
+\providecolor{csvComorbilidad}{HTML}{E89D9D}
+\providecolor{csvEconomico}{HTML}{A8C8E0}
+\providecolor{csvTrabajoSocial}{HTML}{A8D5BA}
+\providecolor{petroleo}{HTML}{3B5366}
+\providecolor{vinoCIMAT}{HTML}{7A2237}
+\begin{center}
+\begin{tikzpicture}[
+  scale=1.8,
+  font=\footnotesize,
+  arr/.style={->, >=Stealth, line width=0.8pt}
+]
+  % Ángulo de proyección
+  \pgfmathsetmacro{\ca}{cos(20)}
+  \pgfmathsetmacro{\sa}{sin(20)}
+  \pgfmathsetmacro{\sx}{2.0}
+  \pgfmathsetmacro{\sy}{2.2}
+  \pgfmathsetmacro{\sz}{3.5}
+
+  % Coordenadas 3D → 2D
+  \coordinate (O)   at (0, 0);
+  \coordinate (X)   at ({\sx*\ca}, {\sx*\sa});
+  \coordinate (Y)   at ({\sy*\ca}, {-\sy*\sa});
+  \coordinate (Z)   at (0, \sz);
+  \coordinate (XY)  at ({\sx*\ca + \sy*\ca}, {\sx*\sa - \sy*\sa});
+  \coordinate (XZ)  at ({\sx*\ca}, {\sz + \sx*\sa});
+  \coordinate (YZ)  at ({\sy*\ca}, {\sz - \sy*\sa});
+  \coordinate (XYZ) at ({\sx*\ca + \sy*\ca}, {\sz + \sx*\sa - \sy*\sa});
+
+  % --- Caras del cubo (en orden inverso para superposición correcta) ---
+
+  % Cara trasera (yz): Económico × T. Social
+  \fill[csvEconomico!30] (O) -- (Y) -- (YZ) -- (Z) -- cycle;
+  \draw[csvEconomico, line width=1.0pt] (O) -- (Y) -- (YZ) -- (Z) -- cycle;
+
+  % Cara trasera (xz): Comorbilidad × T. Social
+  \fill[csvComorbilidad!30] (O) -- (X) -- (XZ) -- (Z) -- cycle;
+  \draw[csvComorbilidad, line width=1.0pt] (O) -- (X) -- (XZ) -- (Z) -- cycle;
+
+  % Cara inferior (xy): Comorbilidad × Económico
+  \fill[csvTrabajoSocial!30] (O) -- (X) -- (XY) -- (Y) -- cycle;
+  \draw[csvTrabajoSocial, line width=1.0pt] (O) -- (X) -- (XY) -- (Y) -- cycle;
+
+  % Aristas de la cara superior (semiocultas, punteadas)
+  \draw[csvEconomico, line width=0.6pt, dashed] (X) -- (XZ) -- (XYZ) -- (YZ) -- (Y);
+  \draw[csvTrabajoSocial, line width=0.6pt, dashed] (X) -- (XY) -- (Y);
+  \draw[csvComorbilidad, line width=0.6pt, dashed] (XZ) -- (XYZ) -- (YZ);
+
+  % --- Flechas de los ejes ---
+  \begin{scope}[arr]
+    \draw[petroleo] (O) -- ({2.3*\ca}, {2.3*\sa})   node[anchor=south west, petroleo] {Comorbilidad 4,278};
+    \draw[vinoCIMAT] (O) -- ({2.5*\ca}, {-2.5*\sa})  node[anchor=north west, vinoCIMAT] {Económico 4,632};
+    \draw[petroleo!50!vinoCIMAT] (O) -- (0, 3.7) node[anchor=east, petroleo!50!vinoCIMAT] {Trabajo Social 14,796};
+  \end{scope}
+
+  % --- Etiquetas de pares por cara (centroides calculados) ---
+  \node[fill=white, inner sep=2pt, font=\small] at ({\sx*\ca/2}, {(\sx*\sa + \sz)/2})     {63.3M pares};
+  \node[fill=white, inner sep=2pt, font=\small] at ({\sy*\ca/2}, {(\sz - \sy*\sa)/2})     {68.5M pares};
+  \node[fill=white, inner sep=2pt, font=\small] at ({(\sx+\sy)*\ca/2}, {(\sx-\sy)*\sa/2}) {19.8M pares};
+
+  % --- Anotación de complejidad ---
+  \node[font=\footnotesize, anchor=north] at ({(\sx+\sy)*\ca/2}, -2.0)
+    {Total: $\sim$151.6M pares ($\mathcal{O}(n^3)$)};
+
+\end{tikzpicture}
+\captionof{figure}{Espacio de búsqueda del problema de ligado. Cada eje representa una base de datos y cada cara del cubo corresponde al producto cartesiano entre dos fuentes.}
+\label{fig:cubo_producto_cartesiano}
+\end{center}

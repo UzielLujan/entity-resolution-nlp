@@ -1,0 +1,57 @@
+\begin{titlepage}
+\thispagestyle{empty}
+
+% Fondo con los colores institucionales
+\tikz[remember picture,overlay] \node[opacity=1.0, inner sep=0pt] at ([yshift=-2.5cm]current page.south){
+\begin{tikzpicture}
+    \begin{pgfonlayer}{background}
+        \filldraw[RCimat] (-12,-8)--(-12,3)--(12,2)--(12,-8)--cycle; %{BG};
+     \end{pgfonlayer}
+    \begin{pgfonlayer}{foreground}
+        \filldraw[GCimat] (-12,0)--(-12,1)--(12,1)--(12,0)--cycle; %{overlay};
+    \end{pgfonlayer}
+\end{tikzpicture}};
+
+\vspace{-2cm}
+
+% --- Logo e institución ---
+\begin{center}
+    \includegraphics[scale=0.2]{Portada/logo.jpeg}\\
+    \vspace{0.5cm}
+    {\bfseries \large Centro de Investigación en Matemáticas. Unidad Monterrey}\par
+    \vspace{0.5cm}
+\end{center}
+
+\rule[0.3cm]{\linewidth}{1pt}
+
+% --- Título de la tesis ---
+\vspace{2cm}
+\begin{center}
+    \textbf{\Large \titulo}
+\end{center}
+
+\vspace{2cm}
+
+% --- Datos del grado, autor y director ---
+\begin{center}
+    \Huge
+    T E S I S \\[0.3cm]
+    \normalsize para obtener el grado de \\[0.3cm]
+    \large \textbf{\grado} \\[1cm]
+    \textbf{por} \\[0.3cm]
+    \autor \\[1cm]
+    \textbf{Director de tesis} \\[0.3cm]
+    \director \\ [0.5cm]
+    \textbf{Co-Director:} \\[0.3cm]
+    \codirector
+\end{center}
+
+% --- Fecha ---
+\vspace{1.0cm}
+\begin{minipage}{0.4\textwidth}
+\begin{flushleft}
+\normalsize{\emph{\textbf{\fecha}}}
+\end{flushleft}
+\end{minipage}
+
+\end{titlepage}

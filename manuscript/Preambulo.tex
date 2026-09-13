@@ -1,0 +1,209 @@
+% ==================================================
+% Fuentes, idioma y codificación
+% ==================================================
+\usepackage[T1]{fontenc}        % Acentos correctos en PDF
+\usepackage[utf8]{inputenc}     % Archivos fuente en UTF-8
+\usepackage[spanish]{babel}     % Español (títulos, fechas, etc.)
+\decimalpoint                   % Usar punto decimal
+
+% Fuente moderna (texto + mejor rasterizado)
+\usepackage{lmodern}
+%\usepackage{stix}
+
+\usepackage[table]{xcolor} % Para pintar las celdas y filas
+\usepackage{graphicx}      % Para el \resizebox
+\usepackage{tikz}          % Para dibujar los cuadritos de la leyenda
+
+
+
+
+% ==================================================
+% Matemáticas
+% ==================================================
+\usepackage{amsmath, amssymb, mathtools}
+% Opcionales de mates avanzadas (descomenta solo si los usas)
+% \usepackage{physics}
+%\usepackage{tensor}
+% \usepackage{cancel}
+\usepackage{empheq}             % Para enmarcar/destacar ecuaciones
+
+% ==================================================
+% Página, espaciado y párrafos
+% ==================================================
+\usepackage{setspace}
+
+% ==================================================
+% Cabeceras y pies de página
+% ==================================================
+%\usepackage{fancyhdr}
+%\setlength{\headheight}{14.5pt}
+%\pagestyle{fancy}
+
+
+% ==================================================
+% Tablas, múltiples columnas, etc.
+% ==================================================
+\usepackage{booktabs}           % Tablas bonitas
+% \usepackage{multirow}         % Solo si usas celdas de varias filas
+\usepackage{multicol}           % Texto en varias columnas
+
+% ==================================================
+% Colores, figuras y gráficos
+% ==================================================
+\usepackage{xcolor}
+\usepackage{graphicx}
+\graphicspath{{Figuras/}{logo/}}
+\usepackage{float}
+\usepackage{subcaption}
+\usepackage{tikz}
+\usetikzlibrary{positioning, shapes, matrix, fit, backgrounds, arrows.meta}
+\pgfdeclarelayer{background}
+\pgfdeclarelayer{foreground}
+\pgfsetlayers{background,main,foreground}
+
+\usepackage{pgfplots}
+\pgfplotsset{
+    width=10cm,
+    compat=1.18    % versión moderna recomendada
+}
+
+% ==================================================
+% Títulos de secciones (estética)
+% ==================================================
+\usepackage{titlesec}
+\definecolor{gray75}{gray}{0.75}
+\newcommand{\hsp}{\hspace{20pt}}
+
+% Como extarticle/article NO tienen \chapter, formateamos \section:
+\titleformat{\section}[hang]
+  {\Large\bfseries}
+  {\thesection\hsp\textcolor{gray75}{|}\hsp}
+  {0pt}
+  {\Large\bfseries}
+
+% ==================================================
+%  Descomentar para puntos en la tabla de contenidos
+% ==================================================
+
+%\usepackage{tocloft}
+%\renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
+%\sidecaptionvpos{figure}{tl}
+
+% ==================================================
+% Cajas de color / bloques (tcolorbox)
+% ==================================================
+%\usepackage{tcolorbox}
+%\tcbuselibrary{skins,breakable}
+
+% ==================================================
+% Enlaces
+% ==================================================
+\usepackage[hidelinks]{hyperref}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%      Underline Eqs        %%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newsavebox\MBox
+\newcommand\Cline[2][red]{{\sbox\MBox{$#2$}%
+  \rlap{\usebox\MBox}\color{#1}\rule[-1.2\dp\MBox]{\wd\MBox}{0.5pt}}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%        CONSTANTES                %%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newcommand\mom{\sqrt{\frac{m\omega}{2\hbar}}}
+\newcommand\momsq{\frac{m\omega}{2\hbar}}
+\newcommand\dad{\sqrt{\frac{m\omega\hbar}{2}}ie^{-\abs{z}^2/2}}
+\newcommand\gus{\sqrt{\frac{\hbar}{2m\omega}}}
+\newcommand\gussq{\frac{\hbar}{2m\omega}}
+\newcommand\adag{\hat{a}^{\dagger}}
+\newcommand\ah{\hat{a}}
+
+\newcommand{\ylm}[2]{Y_{#1}^{#2}}
+\newcommand{\fun}[3]{\Psi_{#1 #2 #3}(r,\theta,\phi)=R_{#1 #2}(r)Y_{#2}^{#3}(\theta,\phi)}
+\newcommand{\funup}[3]{\Psi_{#1 #2 #3,\,+\frac{1}{2}}(r,\theta,\phi)=R_{#1 #2}(r)Y_{#2}^{#3}(\theta,\phi)}
+\newcommand{\fundown}[3]{\Psi_{#1 #2 #3,\,-\frac{1}{2}}(r,\theta,\phi)=R_{#1 #2}(r)Y_{#2}^{#3}(\theta,\phi)}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%     PALETA DE COLORES         %%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\definecolor{Verde}{HTML}{31B189}
+\definecolor{Azul}{HTML}{7ACE67}
+\definecolor{Naranja}{HTML}{FFC872}
+% Paleta compartida con la presentación y el póster.
+\definecolor{marinoCIMAT}{HTML}{0A1A2F}
+\definecolor{vinoCIMAT}{HTML}{7A2237}
+\definecolor{petroleo}{HTML}{3B5366}
+\definecolor{fondoSlide}{HTML}{F4F5F7}
+\definecolor{textoBody}{HTML}{1A1A1A}
+\definecolor{textoSec}{HTML}{4A4A4A}
+\definecolor{csvEconomico}{HTML}{A8C8E0}
+\definecolor{csvComorbilidad}{HTML}{E89D9D}
+\definecolor{csvTrabajoSocial}{HTML}{A8D5BA}
+\definecolor{umapEconomico}{HTML}{378ADD}
+\definecolor{umapComorbilidad}{HTML}{D85A30}
+\definecolor{umapTrabajoSocial}{HTML}{1D9E75}
+\definecolor{easyPositive}{HTML}{A8D5BA}
+\definecolor{hardPositive}{HTML}{FFC966}
+\definecolor{easyNegative}{HTML}{D8D8D8}
+\definecolor{hardNegative}{HTML}{E89D9D}
+\definecolor{bloqueCode}{HTML}{1C1C1E}
+\definecolor{tokenCyan}{HTML}{5BD9C8}
+\definecolor{tokenVerde}{HTML}{7EDFA5}
+\definecolor{tokenVioleta}{HTML}{B4A3E8}
+\definecolor{semVerde}{HTML}{4CAF50}
+\definecolor{semAmarillo}{HTML}{FFC107}
+\definecolor{semRojo}{HTML}{E53935}
+\definecolor{Crema}{HTML}{FFE3B3}
+\definecolor{AzulUV}{HTML}{1C36A1}
+\definecolor{VerdeUV}{HTML}{00AA33}
+\definecolor{RCimat}{HTML}{73243D}
+\definecolor{GCimat}{HTML}{ACAAAB}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%        Configuración bloques grises    %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usetikzlibrary{positioning, shapes}
+\pgfdeclarelayer{background}
+\pgfdeclarelayer{foreground}
+\pgfsetlayers{background,main,foreground}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+\newenvironment{myblock}[1]{%
+    \tcolorbox[beamer,
+    noparskip,breakable,
+    colback=white,       % Fondo blanco
+    colframe=black,      % Borde negro
+    coltitle=black,      % Color del título en negro
+    coltext=black,       % Texto negro
+    sharp corners,       % Esquinas sin redondear
+    boxrule=1pt,         % Grosor de las líneas del borde
+    enhanced jigsaw,     % Mejora la estructura del cuadro
+    before skip=10pt,    % Espacio antes del cuadro
+    after skip=10pt]}    % Espacio después del cuadro
+    {\endtcolorbox}
+
+
+\newtcbox{\othermathbox}[1][]{nobeforeafter, tcbox raise base, enhanced, sharp corners, colback=white!10, colframe=AzulUV!30!black,drop fuzzy shadow, left=1em, top=1em, right=1em, bottom=1em}
+
+% Syntax: \colorboxed[<color model>]{<color specification>}{<math formula>}
+\newcommand*{\colorboxed}{}
+\def\colorboxed#1#{%
+  \colorboxedAux{#1}%
+}
+\newcommand*{\colorboxedAux}[3]{%
+  % #1: optional argument for color model
+  % #2: color specification
+  % #3: formula
+  \begingroup
+    \colorlet{cb@saved}{.}%
+    \color#1{#2}%
+    \boxed{%
+      \color{cb@saved}%
+      #3%
+    }%
+  \endgroup
+}
+% ==================================================
+\usepackage{csquotes}
+\usepackage[backend=biber, style=numeric, sorting = none]{biblatex} % Estilo APA automático
+\addbibresource{Bibliografia/referencias.bib} % Llama a tu archivo nuevo

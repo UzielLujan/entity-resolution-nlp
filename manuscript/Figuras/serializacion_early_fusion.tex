@@ -1,0 +1,100 @@
+% Diagrama: Serialización Early Fusion (tabla → secuencia)
+% Uso vertical para evitar desbordar página; colores de bloques_modalidades.tex
+\providecolor{cID}{HTML}{4A90D9}
+\providecolor{cCLIN}{HTML}{E74C3C}
+\providecolor{cGEO}{HTML}{2ECC71}
+\providecolor{cSOCIO}{HTML}{F39C12}
+\providecolor{cADMIN}{HTML}{9B59B6}
+\begin{center}
+\begin{tikzpicture}[
+  cell/.style={font=\small\ttfamily, align=left, inner sep=3pt},
+  blk/.style={draw, rounded corners=3pt, inner sep=4pt, outer sep=1pt},
+  hdr/.style={font=\small\bfseries\sffamily, anchor=west},
+  arrow/.style={->, >=Stealth, thick, gray!60},
+  seq/.style={font=\small\ttfamily, align=left, inner sep=2pt},
+  tok/.style={font=\small\bfseries, inner sep=1pt},
+  ann/.style={font=\footnotesize, gray!70, inner sep=2pt},
+]
+  % ==================== PANEL SUPERIOR: REGISTRO TABULAR ====================
+  % Coordenadas base
+  \pgfmathsetmacro{\xL}{0}
+  \pgfmathsetmacro{\xM}{3.5}
+  \pgfmathsetmacro{\xR}{11}
+  \pgfmathsetmacro{\dy}{0.8}
+  \pgfmathsetmacro{\yStart}{0}
+
+  % Encabezado panel
+  \node[hdr] at (\xL, \yStart) {Registro tabular (Comorbilidad)};
+
+  % Función auxiliar para filas
+  \newcommand{\fila}[3]{%
+    \node[blk, fill=#1!15, draw=#1] at (\xM, #2) {#3};
+  }
+
+  % BLK_ID
+  \node[blk, fill=cID!15, draw=cID, minimum width=2.2cm] at (\xL+1.1, \yStart-\dy) {\bfseries\sffamily\color{cID}[BLK\_ID]};
+  \fila{cID}{\yStart-2*\dy}{nombre = JUAN PEREZ}
+  \fila{cID}{\yStart-3*\dy}{edad = 45}
+  \node[blk, fill=cID!15, draw=cID, minimum width=2.2cm] at (\xL+1.1, \yStart-4*\dy) {\bfseries\sffamily\color{cID}[/BLK\_ID]};
+
+  % BLK_CLIN
+  \node[blk, fill=cCLIN!15, draw=cCLIN, minimum width=2.2cm] at (\xL+1.1, \yStart-5*\dy) {\bfseries\sffamily\color{cCLIN}[BLK\_CLIN]};
+  \fila{cCLIN}{\yStart-6*\dy}{diagnostico = NEUMONIA}
+  \fila{cCLIN}{\yStart-7*\dy}{\color{gray!50}diagnostico2 = \textit{(nulo)}}
+  \node[blk, fill=cCLIN!15, draw=cCLIN, minimum width=2.2cm] at (\xL+1.1, \yStart-8*\dy) {\bfseries\sffamily\color{cCLIN}[/BLK\_CLIN]};
+
+  % BLK_GEO (ausente)
+  \node[blk, fill=gray!10, draw=gray!50, minimum width=2.2cm, dashed] at (\xL+1.1, \yStart-9*\dy) {\bfseries\sffamily\color{gray!60}[BLK\_GEO] (ausente)};
+  \node[ann] at (\xR, \yStart-9*\dy) {bloque ausente $\to$ omitido};
+
+  % BLK_SOCIO (ausente)
+  \node[blk, fill=gray!10, draw=gray!50, minimum width=2.2cm, dashed] at (\xL+1.1, \yStart-10*\dy) {\bfseries\sffamily\color{gray!60}[BLK\_SOCIO] (ausente)};
+  \node[ann] at (\xR, \yStart-10*\dy) {bloque ausente $\to$ omitido};
+
+  % BLK_ADMIN
+  \node[blk, fill=cADMIN!15, draw=cADMIN, minimum width=2.2cm] at (\xL+1.1, \yStart-11*\dy) {\bfseries\sffamily\color{cADMIN}[BLK\_ADMIN]};
+  \fila{cADMIN}{\yStart-12*\dy}{expediente = 12345}
+  \fila{cADMIN}{\yStart-13*\dy}{fechaing = 2020-03-15}
+  \node[blk, fill=cADMIN!15, draw=cADMIN, minimum width=2.2cm] at (\xL+1.1, \yStart-14*\dy) {\bfseries\sffamily\color{cADMIN}[/BLK\_ADMIN]};
+
+  % ==================== FLECHA CENTRAL ====================
+  \pgfmathsetmacro{\yMid}{\yStart - 7.5*\dy}
+  \draw[arrow] (\xR+0.5, \yMid) -- node[fill=white, inner sep=4pt, font=\small\bfseries] {Early Fusion + Serialización} (\xR+2.5, \yMid);
+
+  % ==================== PANEL INFERIOR: SECUENCIA SERIALIZADA ====================
+  \pgfmathsetmacro{\xSeq}{\xR+3.5}
+  \pgfmathsetmacro{\ySeqStart}{\yStart + 1.5}
+  \pgfmathsetmacro{\dySeq}{0.7}
+
+  \node[hdr] at (\xSeq, \ySeqStart) {Secuencia tokenizada};
+
+  % Definir estilos de tokens por bloque
+  \newcommand{\tok}[3]{%
+    \node[seq, color=#1] at (\xSeq, #2) {#3};
+  }
+
+  % BLK_ID
+  \tok{cID}{\ySeqStart}{[BLK\_ID]}
+  \tok{cID}{\ySeqStart-\dySeq}{[COL] nombre [VAL] JUAN PEREZ}
+  \tok{cID}{\ySeqStart-2*\dySeq}{[COL] edad [VAL] 45}
+  \tok{cID}{\ySeqStart-3*\dySeq}{[/BLK\_ID]}
+
+  % BLK_CLIN
+  \tok{cCLIN}{\ySeqStart-4*\dySeq}{[BLK\_CLIN]}
+  \tok{cCLIN}{\ySeqStart-5*\dySeq}{[COL] diagnostico [VAL] NEUMONIA}
+  \tok{cCLIN}{\ySeqStart-6*\dySeq}{[/BLK\_CLIN]}
+  \node[ann, color=cCLIN] at (\xSeq+5.5, \ySeqStart-5*\dySeq) {diagnostico2 omitido (nulo)};
+
+  % BLK_ADMIN
+  \tok{cADMIN}{\ySeqStart-7*\dySeq}{[BLK\_ADMIN]}
+  \tok{cADMIN}{\ySeqStart-8*\dySeq}{[COL] expediente [VAL] 12345}
+  \tok{cADMIN}{\ySeqStart-9*\dySeq}{[COL] fechaing [VAL] 2020-03-15}
+  \tok{cADMIN}{\ySeqStart-10*\dySeq}{[/BLK\_ADMIN]}
+
+  % Leyenda de bloques ausentes
+  \node[ann] at (\xSeq, \ySeqStart-11*\dySeq) {[BLK\_GEO], [BLK\_SOCIO] omitidos (bloques ausentes por diseño)};
+
+\end{tikzpicture}
+\captionof{figure}{Proceso de serialización \textit{early fusion}: registro tabular $\to$ secuencia de tokens con bloques semánticos coloreados.}
+\label{fig:serializacion_early_fusion}
+\end{center}

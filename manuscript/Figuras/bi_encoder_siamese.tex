@@ -1,0 +1,48 @@
+% Diagrama conceptual de un Bi-Encoder siamés para recuperación.
+\providecolor{petroleo}{HTML}{3B5366}
+\providecolor{vinoCIMAT}{HTML}{7A2237}
+\begin{center}
+\begin{tikzpicture}[
+  >={Stealth[length=2.4mm]},
+  flow/.style={->, draw=gray!65, line width=0.8pt},
+  shared/.style={<->, draw=vinoCIMAT!70, dashed, line width=0.8pt},
+  record/.style={draw=gray!45, fill=gray!6, rounded corners=3pt,
+                 minimum width=2.1cm, minimum height=0.85cm, align=center},
+  encoder/.style={draw=petroleo, fill=petroleo!10, rounded corners=3pt,
+                  minimum width=2.2cm, minimum height=0.9cm, align=center},
+  pooling/.style={draw=gray!45, fill=gray!8, rounded corners=3pt,
+                  minimum width=1.7cm, minimum height=0.7cm, align=center},
+  vector/.style={draw=petroleo, fill=white, circle, minimum size=0.8cm},
+  similarity/.style={draw=vinoCIMAT, fill=vinoCIMAT!8, rounded corners=3pt,
+                     minimum width=2.6cm, minimum height=0.9cm, align=center},
+  every node/.style={font=\footnotesize}
+]
+  \node[record]  (recordA) at (-2.6,6.5) {Registro $x_a$};
+  \node[record]  (recordB) at ( 2.6,6.5) {Registro $x_b$};
+  \node[encoder] (encoderA) at (-2.6,4.9) {Codificador\\$f_\theta$};
+  \node[encoder] (encoderB) at ( 2.6,4.9) {Codificador\\$f_\theta$};
+  \node[pooling] (poolingA) at (-2.6,3.3) {\textit{mean pooling}};
+  \node[pooling] (poolingB) at ( 2.6,3.3) {\textit{mean pooling}};
+  \node[vector]  (vectorA) at (-2.6,1.75) {$\mathbf z_a$};
+  \node[vector]  (vectorB) at ( 2.6,1.75) {$\mathbf z_b$};
+  \node[similarity] (cosine) at (0,0.25) {Cálculo de\\similitud coseno};
+  \node[draw=petroleo, fill=petroleo!8, rounded corners=3pt,
+        minimum width=3.2cm, minimum height=0.75cm]
+    (score) at (0,-1.25) {$\operatorname{sim}_\theta(x_a,x_b)$};
+
+  \draw[flow] (recordA) -- (encoderA);
+  \draw[flow] (recordB) -- (encoderB);
+  \draw[flow] (encoderA) -- (poolingA);
+  \draw[flow] (encoderB) -- (poolingB);
+  \draw[flow] (poolingA) -- (vectorA);
+  \draw[flow] (poolingB) -- (vectorB);
+  \draw[flow] (vectorA) -- (cosine.north west);
+  \draw[flow] (vectorB) -- (cosine.north east);
+  \draw[flow] (cosine) -- node[right] {puntaje} (score);
+
+  \draw[shared] (encoderA.east) -- (encoderB.west);
+  \node[color=vinoCIMAT] at (0,5.25) {pesos compartidos};
+\end{tikzpicture}
+\captionof{figure}{Bi-Encoder siamés para aprendizaje métrico y recuperación. Cada registro se codifica de forma independiente mediante la misma función $f_\theta$; la interacción ocurre después, al comparar los vectores y recuperar los candidatos más cercanos.}
+\label{fig:bi_encoder_siamese}
+\end{center}

@@ -1,0 +1,98 @@
+\documentclass[letterpaper,12pt,twoside]{book}
+\usepackage[spanish,es-noshorthands]{babel}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%          Se incluye el preámbulo       %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{Preambulo}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%       Paquete para portada CIMAT       %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{CIMATpreamble}
+\setlength{\headheight}{30pt}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%     Datos de la portada CIMAT          %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\title{Aprendizaje métrico y modelos de lenguaje pre-entrenados para la resolución de entidades en bases de datos clínicas}
+\author{Ing. Uziel Isaí Luján López}
+\documentType{T E S I S}
+\degree{Maestro en Cómputo Estadístico}
+\supervisor{Dr. Víctor Hugo Muñiz Sánchez}
+\supervisorSecond{Dr. Víctor Mireles Chávez}
+\cityandyear{Monterrey, Nuevo León, Abril de 2026}
+
+\begin{document}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%      Portada oficial CIMAT             %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\maketitle
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%        Frontmatter                     %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\frontmatter
+
+% --- Dedicatoria ---
+\chapter*{}
+\begin{flushright}
+  \emph{A mis padres, por todo.}
+  \thispagestyle{empty}
+\end{flushright}
+
+% --- Resumen ---
+\chapter*{Resumen}
+\addcontentsline{toc}{chapter}{Resumen}
+
+Esta tesis aborda el problema de ligado de registros en bases de datos clínicas, tomando como caso de estudio registros de pacientes COVID-19 del Instituto Nacional de Enfermedades Respiratorias (INER). La ausencia de identificadores únicos confiables y la alta variabilidad en la captura de los datos motivan el diseño e implementación de un sistema basado en arquitecturas neuronales profundas y modelos de lenguaje pre-entrenados.
+
+El sistema propuesto opera en dos etapas: recuperación de candidatos y clasificación de pares de registros. Los registros tabulares se transforman en secuencias estructuradas de texto mediante su serialización en formato clave-valor. En la primera etapa, un Bi-Encoder, entrenado con la función de pérdida \textit{Multiple Negatives Ranking Loss} (MNRL), construye un espacio métrico compartido, proyecta los registros en él y recupera eficientemente los candidatos con mayor similitud semántica. En la segunda etapa, cada registro de consulta se empareja con cada uno de los candidatos recuperados. Un Cross-Encoder, entrenado con \textit{Binary Cross Entropy} (BCE), procesa conjuntamente los dos registros para clasificarlos o no como la misma entidad.
+
+También se exploran estrategias de aumento de datos diseñadas para mitigar la desproporción entre pares positivos y negativos y favorecer la capacidad de generalización de los modelos. Los experimentos no evidenciaron una mejora en dicha capacidad, debido a que los patrones sintéticos implementados no reprodujeron adecuadamente la variabilidad de los datos reales.
+
+En conjunto, los resultados muestran que la propuesta logra un equilibrio entre eficiencia y precisión sobre el conjunto de datos construido a partir de los registros clínicos del INER, lo que respalda su integración como un sistema confiable para el ligado de registros clínicos heterogéneos con información faltante.
+
+
+\paragraph{Palabras clave:} aprendizaje métrico, resolución de entidades, modelos de lenguaje, ligado de registros, registros clínicos
+
+% --- Agradecimientos ---
+\chapter*{Agradecimientos}
+\addcontentsline{toc}{chapter}{Agradecimientos}
+
+Texto de agradecimientos.
+
+% --- Tabla de contenidos y listas ---
+\tableofcontents
+\clearpage
+
+\listoffigures
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%        Mainmatter                      %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\mainmatter
+
+\spacing{1.5}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%       Capítulos de la Tesis            %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\include{Capitulos/01}
+\include{Capitulos/02}
+\include{Capitulos/03}
+\include{Capitulos/04}
+\include{Capitulos/05}
+\include{Capitulos/06}
+
+\nocite{*}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%           Bibliografía                 %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\backmatter
+\printbibliography
+
+\end{document}

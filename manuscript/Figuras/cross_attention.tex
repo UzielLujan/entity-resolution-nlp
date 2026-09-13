@@ -1,0 +1,31 @@
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  tokena/.style={draw=petroleo, fill=petroleo!26, rounded corners=2pt,
+                 minimum width=1.45cm, minimum height=0.55cm, inner sep=2pt},
+  tokenb/.style={draw=vinoCIMAT!70, fill=vinoCIMAT!12, rounded corners=2pt,
+                 minimum width=1.45cm, minimum height=0.55cm, inner sep=2pt},
+  attention/.style={petroleo, line width=0.85pt},
+  every node/.style={font=\small}
+]
+  \node[anchor=east, font=\bfseries] at (-1.15, 1.4) {Registro A};
+  \node[tokena] (a1) at (0, 1.4) {Juan};
+  \node[tokena] (a2) at (1.8, 1.4) {45};
+  \node[tokena] (a3) at (3.6, 1.4) {21/04};
+  \node[tokena] (a4) at (5.4, 1.4) {COVID-19};
+
+  \node[anchor=east, font=\bfseries] at (-1.15, -0.4) {Registro B};
+  \node[tokenb] (b1) at (0, -0.4) {J. P\'erez};
+  \node[tokenb] (b2) at (1.8, -0.4) {46};
+  \node[tokenb] (b3) at (3.6, -0.4) {23/05};
+  \node[tokenb] (b4) at (5.4, -0.4) {SARS-CoV};
+
+  \foreach \a in {a1,a2,a3,a4}{
+    \foreach \b in {b1,b2,b3,b4}{
+      \draw[attention] (\a.south) -- (\b.north);
+    }
+  }
+\end{tikzpicture}
+\caption{Visualización conceptual del mecanismo de atenci\'on cruzada en el Cross-Encoder. Las conexiones representan la interacción fina entre los tokens de ambos registros procesados; el diagrama es solo ilustrativo y no corresponde a pesos de atenci\'on observados.}
+\label{fig:cross_attention}
+\end{figure}

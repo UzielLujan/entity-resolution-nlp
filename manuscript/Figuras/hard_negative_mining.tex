@@ -1,0 +1,37 @@
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  x=1cm,
+  y=1cm,
+  record/.style={circle, minimum size=0.48cm, inner sep=0pt},
+  pairline/.style={dashed, textoSec!70, line width=0.8pt},
+  every node/.style={font=\small}
+]
+  \node[anchor=east, text width=3.3cm, align=right] at (0, 2.1)
+    {\textbf{Positivo}};
+  \node[record, fill=petroleo] (p1a) at (0.8, 2.1) {};
+  \node[record, fill=vinoCIMAT] (p1b) at (2.1, 2.1) {};
+  \draw[pairline] (p1a) -- (p1b);
+  \node[anchor=west, text=textoSec] at (2.55, 2.1)
+    {misma entidad, dentro del top-$K$};
+
+  \node[anchor=east, text width=3.3cm, align=right] at (0, 0.9)
+    {\textbf{Positivo difícil}};
+  \node[record, fill=petroleo] (p2a) at (0.8, 0.9) {};
+  \node[record, fill=vinoCIMAT] (p2b) at (4.0, 0.9) {};
+  \draw[pairline] (p2a) -- (p2b);
+  \node[anchor=west, text=textoSec] at (4.45, 0.9)
+    {misma entidad, fuera del top-$K$};
+
+  \node[anchor=east, text width=3.3cm, align=right] at (0, -0.3)
+    {\textbf{Negativo difícil}};
+  \node[record, fill=petroleo] (p3a) at (0.8, -0.3) {};
+  \node[record, fill=textoSec] (p3b) at (2.1, -0.3) {};
+  \draw[pairline] (p3a) -- (p3b);
+  \node[anchor=west, text=textoSec] at (2.55, -0.3)
+    {entidades distintas, dentro del top-$K$};
+
+\end{tikzpicture}
+\caption{Construcción del conjunto de pares mediante \textit{Hard Negative Mining}. El top-$K$ se determina por la similitud en el espacio métrico aprendido por el Bi-Encoder: los pares dentro del top-$K$ son cercanos y los pares fuera de él, son lejanos. Todos los positivos ya conocidos se mantienen; los negativos difíciles se añaden al conjunto de entrenamiento del Cross-Encoder.}
+\label{fig:hard_negative_mining}
+\end{figure}

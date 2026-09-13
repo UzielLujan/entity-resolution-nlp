@@ -1,0 +1,59 @@
+
+\chapter{Conclusiones}
+
+% ==============================================================================
+% 6.1 CONTRIBUCIONES
+% ==============================================================================
+\section{Resumen de contribuciones}
+
+\textbf{Estructura:}
+\begin{itemize}
+    \item Se implementó y validó un pipeline completo de Record Linkage neuronal (Retrieve \& Re-rank) sobre bases de datos clínicas reales del INER, alcanzando F1 $\approx$ 1.0 en el silver standard generado.
+    \item Contribución metodológica: la serialización \texttt{tok\_skipnull} (tokens de bloque semántico + omisión de nulos) como configuración óptima para Early Fusion en registros tabulares heterogéneos.
+    \item Contribución experimental: $\Delta_{\text{sep}}$ como métrica discriminativa para evaluar Bi-Encoders cuando Recall@K se satura.
+    \item Contribución práctica: el pipeline de etiquetado determinístico (Ruta A) con revisión manual produjo 11,447 pares confirmados (+1,592 vs baseline), y el Cross-Encoder demostró capacidad de auditoría al detectar un error de etiquetado humano (caso PRADO).
+    \item La arquitectura se entrenó y evaluó en HPC con CUDA; el mejor modelo (BETO, MNRL, 17 épocas) y su checkpoint están disponibles para reproducción.
+\end{itemize}
+
+
+% ==============================================================================
+% 6.2 LIMITACIONES
+% ==============================================================================
+\section{Limitaciones}
+
+Los resultados deben interpretarse dentro de los límites del conjunto de datos, del protocolo de evaluación y de la arquitectura implementada.
+\begin{itemize}
+    \item \textbf{Conjunto de referencia imperfecto:} las etiquetas constituyen un \textit{silver standard}, construido a partir del expediente, reglas determinísticas y revisión manual. Puede contener errores residuales y puede omitir coincidencias reales cuando el expediente difiere entre fuentes.
+    \item \textbf{Cobertura condicionada a los candidatos recuperados:} el Cross-Encoder solo evalúa los pares que el Bi-Encoder recupera entre sus candidatos. Dada la naturaleza imperfecta del conjunto de referencia y la ambigüedad de los datos, no puede descartarse que existan coincidencias reales fuera de ese conjunto de candidatos.
+    \item \textbf{Entrada limitada del Cross-Encoder:} cada par se procesa en un orden fijo y comparte una ventana máxima de 512 tokens. En una parte de los pares la secuencia excede ese límite y se trunca, por lo que no toda la información de ambos registros llega al clasificador.
+    \item \textbf{Incertidumbre acotada:} la calibración y el análisis de incertidumbre se aplicaron a la decisión del Cross-Encoder, no a la etapa de recuperación. La métrica $\Delta_{\mathrm{sep}}$ describe la separación sobre los pares observados del split, pero no cuantifica coincidencias reales que no hayan sido incluidas en el conjunto de referencia.
+    \item \textbf{Robustez y generalización:} los operadores de aumento genéricos no reprodujeron las diferencias reales entre las fuentes y no mejoraron la generalización. Los resultados se limitan a las tres bases clínicas del INER; aplicarlos en otra institución requeriría revisar la representación de campos, reentrenar y validar de nuevo el sistema.
+\end{itemize}
+
+
+% ==============================================================================
+% 6.3 TRABAJO FUTURO
+% ==============================================================================
+\section{Trabajo futuro}
+
+Las extensiones siguientes no son necesarias para interpretar los resultados actuales, pero permitirían evaluar con mayor amplitud la robustez y el alcance operativo del sistema.
+\begin{itemize}
+    \item \textbf{Robustecer la recuperación y la minería de pares difíciles:} ampliar el conjunto de candidatos para incluir registros presentes en una sola fuente, filtrar comparaciones inválidas antes de elegir los candidatos principales y reportar los resultados según la dirección de búsqueda entre bases.
+    \item \textbf{Evaluar el efecto del orden y del truncamiento:} procesar cada par en ambas orientaciones, preservando en cada pasada uno de los registros completo, y combinar ambas puntuaciones antes de tomar una decisión.
+    \item \textbf{Auditar coincidencias no observadas:} revisar pares no etiquetados con alta similitud y candidatos próximos al límite de recuperación para buscar coincidencias que el conjunto de referencia no contiene.
+    \item \textbf{Comparar con una referencia léxica (baseline):} contrastar el enfoque neuronal con representaciones TF-IDF en ambas etapas: recuperación mediante similitud léxica para el Bi-Encoder y clasificación de características del par para el Cross-Encoder. Cada etapa requiere un método apropiado, pero la comparación permitiría aislar la contribución del modelado contextual frente a alternativas clásicas.
+    \item \textbf{Estimar la estabilidad del desempeño:} complementar la partición actual con validación cruzada K-fold por entidad. Una evaluación completa exigiría entrenar un nuevo Bi-Encoder en cada partición, regenerar los candidatos y los pares difíciles, y entrenar después un nuevo Cross-Encoder; por ello, multiplica de manera importante el costo de cómputo y el tiempo experimental.
+    \item \textbf{Experimento de ablación de bloques semánticos:} retirar un bloque a la vez en el conjunto de prueba y medir el cambio en el desempeño, para identificar qué información contribuye a las decisiones del sistema.
+    \item \textbf{Validación y operación en otros contextos:} evaluar el método con datos de otras instituciones e incorporar mecanismos de búsqueda eficientes y herramientas de apoyo a la revisión humana cuando exista un flujo de inferencia definido.
+\end{itemize}
+
+
+% ==============================================================================
+% 6.4 CIERRE
+% ==============================================================================
+\section{Palabras finales}
+
+\textbf{Estructura:}
+\begin{itemize}
+    \item Párrafo de cierre: la resolución de entidades en bases de datos clínicas fragmentadas es un problema vigente y relevante para la salud pública en México. Este trabajo demostró que un enfoque neuronal basado en aprendizaje métrico y modelos de lenguaje pre-entrenados puede alcanzar precisión de producción, siempre que se acompañe de un proceso cuidadoso de etiquetado y validación humana. La combinación de métodos determinísticos, revisión humana y representaciones semánticas profundas ofrece una ruta viable para integrar sistemas de información hospitalaria heredados sin requerir armonización previa de esquemas.
+\end{itemize}

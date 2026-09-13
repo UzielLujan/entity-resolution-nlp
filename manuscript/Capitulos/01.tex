@@ -1,0 +1,46 @@
+\chapter{Introducción}
+
+\section{Contexto y motivación}
+La integración de información proveniente de múltiples fuentes es un problema central en el análisis de datos dentro de instituciones públicas. Particularmente en el contexto del sector salud, las bases de datos suelen ser inherentemente heterogéneas, con estructuras dispares, catálogos incompletos, errores de captura, duplicidades y un alto grado de información faltante~\cite{cappuzzo2020,ong2014}. Estas condiciones dificultan enormemente la vinculación de registros que se refieren a la misma entidad o persona, lo cual limita la capacidad de las instituciones para generar diagnósticos confiables y tomar decisiones informadas.
+
+El Instituto Nacional de Enfermedades Respiratorias Ismael Cosío Villegas (INER) experimentó una exacerbación de este fenómeno durante la emergencia sanitaria por COVID-19. La necesidad operativa de atender volúmenes masivos de pacientes obligó a la captura acelerada de información a través de múltiples sistemas independientes entre sí (administrativos, clínicos y de trabajo social). Consolidar estas fuentes fragmentadas no es solo un requerimiento para la optimización administrativa, sino un paso clínico fundamental: garantizar que la calidad, interoperabilidad y consistencia de los registros permitan un seguimiento riguroso y unificado para los pacientes post-COVID-19. La posibilidad de construir herramientas que identifiquen coincidencias de manera precisa, transparente y escalable tiene un impacto potencial directo en la operación institucional del INER.
+
+\section{Planteamiento del problema}
+El desafío central para la integración de las bases de datos del INER radica en la ausencia de identificadores únicos estandarizados. Aunque dentro de dichas bases  existan campos teóricamente vinculantes, como el número de expediente o el nombre del paciente, estos fungen como llaves ``rotas'' debido a la naturaleza ruidosa de la captura humana en el mundo real, sobre todo en situaciones de emergencia sanitaria.
+
+Al proceso de identificar registros coincidentes entre bases de datos distintas se le conoce en la literatura como Ligado de Registros (\textit{Record Linkage}) o Resolución de Entidades~\cite{dunn1946,fellegi1969,li2020} y es fundamental para obtener una visión coherente y completa de la información disponible. Los métodos clásicos para abordar este problema, basados en reglas condicionales rígidas o comparaciones de cadenas de caracteres (como distancias de edición~\cite{levenshtein1966,damerau1964} o métricas de similitud de cadenas~\cite{jaro1989}), ofrecen soluciones aceptables únicamente cuando los datos son consistentes y relativamente limpios. Sin embargo, resultan insuficientes ante la variabilidad lingüística, la presencia de errores ortográficos y tipográficos o la existencia de texto libre con ambigüedad semántica~\cite{li2020}.
+Estas limitaciones se vuelven particularmente críticas en dominios sensibles como la atención médica, donde un error de vinculación puede afectar directamente la calidad de vida de una persona o el seguimiento clínico de un caso específico.
+
+En años recientes, los avances en técnicas de aprendizaje profundo y procesamiento de lenguaje natural han abierto nuevas posibilidades para abordar este problema. Los modelos de lenguaje pre-entrenados basados en la arquitectura Transformer~\cite{vaswani2017}, como BERT~\cite{devlin2019}, han demostrado una alta capacidad para capturar relaciones semánticas y desambiguar texto en contextos complejos, permitiendo modelar distancias robustas entre registros heterogéneos. Estas herramientas son especialmente útiles cuando se requiere comparar información almacenada en formatos distintos~\cite{li2020,cappuzzo2020} (e.g. comparar texto libre con datos tabulares) y trabajar con información incompleta o ruidosa~\cite{ong2014,li2020}.
+
+Sin embargo, a este desafío de calidad y heterogeneidad presentes en los datos se suma una barrera computacional crítica: la comparación y revisión exhaustiva de todos los pares posibles en bases de datos masivas conlleva una complejidad cuadrática $\mathcal{O}(N^2)$. Aplicar directamente a esta escala arquitecturas neuronales profundas, como los Transformers, resulta prohibitivo debido a su alto costo computacional.
+
+Por lo tanto, existe una necesidad relevante de superar tanto las limitaciones léxicas como los cuellos de botella computacionales. Se requiere un sistema moderno capaz de comprender e integrar el contexto semántico de la información del paciente, tolerar el ruido inherente a la captura humana, reducir drásticamente el espacio de búsqueda y estimar de manera efectiva si dos registros distintos corresponden a la misma entidad. Este escenario es de alta pertinencia en el contexto mexicano, donde la construcción de este tipo de herramientas tiene un impacto directo tanto en la operación institucional como en el bienestar de la población.
+
+
+\section{Objetivos}
+
+\subsection{Objetivo general}
+Diseñar e implementar un sistema robusto para el ligado de registros entre bases de datos heterogéneas, basado en una arquitectura neuronal profunda de dos etapas: recuperación de candidatos y clasificación de pares de registros.
+
+Evaluar y validar el sistema mediante la vinculación de registros clínicos proporcionados por el Instituto Nacional de Enfermedades Respiratorias (INER), estableciendo una estructura modular y una metodología reproducible para la integración de información en el sector público de salud.
+
+\subsection{Objetivos específicos}
+
+\begin{enumerate}
+    \item Definir bloques semánticos que permitan organizar adecuadamente los atributos de las bases de datos del INER de acuerdo con las modalidades de información que representan.
+    \item Construir representaciones textuales estructuradas de los registros mediante la serialización y concatenación de sus bloques semánticos en una única secuencia con formato clave-valor, definido a partir de la inclusión de tokens especiales.
+    \item Implementar una etapa de recuperación entrenando un modelo basado en una arquitectura neuronal de tipo siamesa (Bi-Encoder), que construya un espacio métrico compartido y sea capaz de proyectar los registros en él, permitiendo recuperar los registros candidatos a ser la misma entidad.
+    \item Desarrollar una fase de clasificación entrenando un modelo basado en una arquitectura que emplee el mecanismo de autoatención (Cross-Encoder) como clasificador binario de los pares formados a partir de los registros recuperados en la etapa anterior, con el propósito de estimar si corresponden a la misma entidad.
+    \item Analizar el efecto de estrategias de aumento de datos sobre la desproporción entre pares positivos y negativos y la capacidad de generalización de los modelos ante el ruido y la variabilidad presentes en registros no observados durante el entrenamiento.
+    \item  Evaluar el desempeño de las etapas de recuperación y clasificación, así como el comportamiento integral del sistema, mediante métricas apropiadas para cada componente.
+\end{enumerate}
+
+
+\section{Contribución de la tesis}
+
+La principal aportación de este trabajo de tesis reside en el diseño metodológico y la implementación de un sistema robusto y moderno que vincula la ingeniería de datos con el aprendizaje profundo aplicado al sector salud. Mientras que las soluciones convencionales dependen de procesos de limpieza manual y revisión exhaustiva, así como de reglas condicionales frágiles ante el error humano, esta tesis demuestra que los modelos de lenguaje pre-entrenados pueden tolerar y absorber el ruido inherente a los datos del mundo real si se les proporciona la estructura y el contexto adecuados.
+
+Al evolucionar de métricas de similitud léxica clásicas hacia una arquitectura neuronal profunda de dos etapas, el sistema propuesto aborda el compromiso entre eficiencia y precisión. La etapa de recuperación reduce el espacio de búsqueda evitando la necesidad de analizar todos los posibles pares mediante la selección de registros candidatos, mientras que la etapa de clasificación analiza en detalle los pares formados a partir de estos candidatos para determinar si efectivamente corresponden a la misma entidad.
+
+Adicionalmente, se analiza una estrategia de aumento de datos diseñada para mitigar la desproporción entre pares positivos y negativos y favorecer la capacidad de generalización de los modelos. Aunque los experimentos no evidenciaron una mejora en dicha capacidad, permitieron identificar las limitaciones del mecanismo sintético implementado para reproducir los patrones de variabilidad presentes en los datos reales. En conjunto, el proyecto proporciona una estructura modular y una metodología reproducible que pueden servir como base para desarrollar herramientas de integración de información en instituciones públicas que carecen de identificadores únicos confiables.

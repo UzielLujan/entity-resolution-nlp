@@ -21,6 +21,27 @@ dist/
 .DS_Store
 *.png
 *.jpg
+!manuscript/**/*.png
+!manuscript/**/*.jpg
+
+# productos de compilación del manuscrito
+manuscript/out/
+manuscript/**/*.aux
+manuscript/**/*.bbl
+manuscript/**/*.bcf
+manuscript/**/*.blg
+manuscript/**/*.fdb_latexmk
+manuscript/**/*.fls
+manuscript/**/*.log
+manuscript/*.pdf
+manuscript/**/*.run.xml
+manuscript/**/*.synctex.gz
+manuscript/**/*.toc
+manuscript/**/*.lof
+manuscript/**/*.lot
+manuscript/**/*.out
+manuscript/**/*.dvi
+manuscript/**/*.xdv
 
 # Obsidian
 .obsidian/
