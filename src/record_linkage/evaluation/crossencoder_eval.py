@@ -17,6 +17,8 @@ from record_linkage.config import EVALUATION_DIR
 from record_linkage.evaluation.metrics import compute_binary_classification_metrics
 from record_linkage.models.crossencoder import build_crossencoder, score_pairs
 
+RAW_ENTROPY_THRESHOLD = 0.01
+
 
 def _texts_from_pairs(pairs_df: pd.DataFrame, records_df: pd.DataFrame) -> tuple[list, list]:
     """Lookup de text_a y text_b desde records_df via record_id."""
@@ -166,7 +168,7 @@ def calibrate_crossencoder(
       2. Ajusta la temperatura T minimizando NLL sobre val.
       3. Calcula ECE antes/después + reliability curves (val).
       4. Corre el CE sobre TEST → logits → prob. calibrada → incertidumbre por par
-         (entropía sobre prob. calibrada; margen |p - tau_dec| sobre prob. cruda).
+          (entropías cruda y calibrada; margen |p - tau_dec| sobre prob. cruda).
 
     Artefactos persistidos:
       - <checkpoint>/calibration.json                          (T + ECE val)
@@ -230,8 +232,9 @@ def calibrate_crossencoder(
     df_test, logits_test, labels_test = _logits_and_labels(test_pairs_path)
     probs_test_raw = apply_temperature(logits_test, 1.0)
     probs_test_cal = apply_temperature(logits_test, temperature)
-    entropia = binary_entropy(probs_test_cal)               # incertidumbre (post-calibración)
-    margen   = decision_margin(probs_test_raw, tau_dec)     # incertidumbre (pre-calibración)
+    entropia_cruda = binary_entropy(probs_test_raw)
+    entropia_calibrada = binary_entropy(probs_test_cal)
+    margen = decision_margin(probs_test_raw, tau_dec)
 
     # Parquet por-vínculo
     uncertainty_df = pd.DataFrame({
@@ -240,7 +243,8 @@ def calibrate_crossencoder(
         "label":         labels_test,
         "score_raw":     probs_test_raw,
         "prob_calibrada": probs_test_cal,
-        "entropia":      entropia,
+        "entropia_cruda": entropia_cruda,
+        "entropia_calibrada": entropia_calibrada,
         "margen":        margen,
     })
     parquet_path = output_dir / f"uncertainty_{ckpt_name}_test.parquet"
@@ -257,7 +261,9 @@ def calibrate_crossencoder(
         "ece_test_after":    round(expected_calibration_error(probs_test_cal, labels_test, n_bins=n_bins), 6),
         "reliability_val_before": reliability_curve(probs_val_raw, labels_val, n_bins=n_bins),
         "reliability_val_after":  reliability_curve(probs_val_cal, labels_val, n_bins=n_bins),
-        "entropy_test_mean": round(float(entropia.mean()), 6),
+        "entropy_raw_test_mean": round(float(entropia_cruda.mean()), 6),
+        "entropy_calibrated_test_mean": round(float(entropia_calibrada.mean()), 6),
+        "n_raw_entropy_ge_0_01": int((entropia_cruda >= RAW_ENTROPY_THRESHOLD).sum()),
         "margin_test_mean":  round(float(margen.mean()), 6),
         "n_val":             int(len(labels_val)),
         "n_test":            int(len(labels_test)),
