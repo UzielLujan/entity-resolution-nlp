@@ -28,7 +28,16 @@ Se evaluaron las cuatro variantes de serialización que resultan de combinar la 
 
 Las métricas de recuperación se encuentran prácticamente saturadas: todas las variantes alcanzan Recall@5 perfecto y sus diferencias de MRR son menores a cinco diezmilésimas. En consecuencia, $\Delta_{\mathrm{sep}}$ aporta el criterio que permite distinguir la estructura interna del espacio métrico. La variante \texttt{tok\_skipnull} obtuvo simultáneamente la menor pérdida de validación y la mayor separación promedio, por lo que se seleccionó como configuración canónica.
 
-La omisión de valores nulos evita repetir información ausente que no discrimina entidades. Los tokens estructurales, por su parte, conservan la delimitación entre bloques y pares clave-valor. Esta combinación permite al modelo identificar qué tipo de información representa cada fragmento sin sobrecargar la secuencia con ausencias. La ventaja en separación es moderada frente a \texttt{notok\_skipnull}, por lo que la conclusión debe interpretarse como una selección empírica dentro de este conjunto de datos y no como una regla universal.
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.90\textwidth]{Figuras/biencoder_serialization_comparison.png}
+    \caption{Pérdida de validación por época para las cuatro variantes de serialización del Bi-Encoder BETO. Las estrellas indican el checkpoint de menor pérdida de cada corrida.}
+    \label{fig:biencoder_serialization_comparison}
+\end{figure}
+
+La Figura~\ref{fig:biencoder_serialization_comparison} muestra además una diferencia en la dinámica de optimización. Las dos variantes que omiten nulos conservaron mejoras durante más épocas. La configuración \texttt{tok\_skipnull} alcanzó su mejor checkpoint en la época 17 y ejecutó 20 épocas; \texttt{notok\_skipnull} alcanzó su mínimo en la época 13 y ejecutó 16. En cambio, los mejores checkpoints de \texttt{tok\_keepnull} y \texttt{notok\_keepnull} ocurrieron en las épocas 5 y 8, y las corridas finalizaron por \textit{early stopping} en las épocas 8 y 11, respectivamente, sin recuperar una mejora sostenida de la pérdida de validación.
+
+La omisión de valores nulos evita repetir información ausente que no discrimina entidades y permite que el modelo continúe refinando la representación con las observaciones disponibles. Los tokens estructurales, por su parte, conservan la delimitación entre bloques y pares clave-valor. Esta combinación permite al modelo identificar qué tipo de información representa cada fragmento sin sobrecargar la secuencia con ausencias. La ventaja en separación es moderada frente a \texttt{notok\_skipnull}, por lo que la conclusión debe interpretarse como una selección empírica dentro de este conjunto de datos y no como una regla universal.
 
 
 % ==============================================================================
@@ -107,7 +116,18 @@ La inspección del único falso negativo, correspondiente al caso PRADO APOLINAR
 % ==============================================================================
 \section{Visualización del espacio métrico}
 
-La proyección UMAP de los embeddings del Bi-Encoder canónico muestra grupos compactos de registros pertenecientes a una misma entidad, con registros procedentes de distintas fuentes dentro de las mismas vecindades. Esta visualización es coherente con las métricas de recuperación y separación, pero es diagnóstica: no sustituye una medida cuantitativa ni permite inferir por sí sola la cobertura de coincidencias no observadas.
+Para examinar cualitativamente la estructura aprendida por el Bi-Encoder, se proyectaron sus embeddings de 768 dimensiones a tres dimensiones mediante UMAP (\textit{Uniform Manifold Approximation and Projection})~\cite{mcinnes2018}. UMAP construye primero un grafo ponderado de vecindades en el espacio original y después optimiza una representación de baja dimensionalidad que preserva, en lo posible, esas relaciones locales. Esta técnica permite inspeccionar en una misma figura cómo se distribuyen registros de distintas fuentes y si las observaciones de una misma entidad ocupan vecindades comunes; no se utiliza como medida de desempeño ni como sustituto de la evaluación de recuperación.
+
+La Figura~\ref{fig:umap_entidad_471} muestra una vista 3D de los registros pertenecientes a entidades observadas en más de una fuente. Cada punto corresponde a un registro y el color identifica su base de origen. Las anotaciones destacan los tres registros de la entidad 471, correspondientes a JUAN SANCHEZ LAGUNES, provenientes de Económico, Comorbilidad y Trabajo Social. Los tres puntos se encuentran en la misma vecindad local a pesar de las variaciones en el orden del nombre entre fuentes, lo que ilustra el comportamiento que se busca inducir mediante el entrenamiento contrastivo.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{Figuras/umap_entidad_471_poster.png}
+    \caption{Proyección UMAP tridimensional del espacio métrico aprendido por el Bi-Encoder. Cada punto representa un registro de una entidad presente en más de una fuente y el color identifica la base de origen. Las anotaciones resaltan los tres registros de la entidad 471, que quedan ubicados en una misma vecindad local.}
+    \label{fig:umap_entidad_471}
+\end{figure}
+
+La proximidad visual de esos puntos es consistente con las métricas de recuperación y separación reportadas anteriormente, pero su interpretación debe mantenerse acotada. UMAP privilegia la preservación de estructura local y puede distorsionar distancias globales; por tanto, la figura sirve para comunicar y diagnosticar el espacio aprendido, no para demostrar por sí sola la cobertura de coincidencias no observadas ni la calidad del sistema completo.
 
 
 % ==============================================================================
