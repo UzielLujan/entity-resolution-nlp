@@ -47,16 +47,12 @@ manuscript/**/*.xdv
 .obsidian/
 .trash/
 
-# Claude context
 AGENTS.md
 
 
 # documentacion
 docs/Anexos/
 docs/presentation/
-
-# bitácora de trabajo
-MEMORY.md
 
 # logs
 logs/
