@@ -6,14 +6,13 @@
 % ==============================================================================
 \section{Resumen de contribuciones}
 
-\textbf{Estructura:}
-\begin{itemize}
-    \item Se implementó y validó un pipeline completo de Record Linkage neuronal (Retrieve \& Re-rank) sobre bases de datos clínicas reales del INER, alcanzando F1 $\approx$ 1.0 en el silver standard generado.
-    \item Contribución metodológica: la serialización \texttt{tok\_skipnull} (tokens de bloque semántico + omisión de nulos) como configuración óptima para Early Fusion en registros tabulares heterogéneos.
-    \item Contribución experimental: $\Delta_{\text{sep}}$ como métrica discriminativa para evaluar Bi-Encoders cuando Recall@K se satura.
-    \item Contribución práctica: el pipeline de etiquetado determinístico (Ruta A) con revisión manual produjo 11,447 pares confirmados (+1,592 vs baseline), y el Cross-Encoder demostró capacidad de auditoría al detectar un error de etiquetado humano (caso PRADO).
-    \item La arquitectura se entrenó y evaluó en HPC con CUDA; el mejor modelo (BETO, MNRL, 17 épocas) y su checkpoint están disponibles para reproducción.
-\end{itemize}
+Esta tesis desarrolló y evaluó un sistema neuronal de \textit{record linkage} para integrar registros clínicos heterogéneos del INER. La propuesta organiza el problema en una arquitectura \textit{Retrieve \& Re-rank}: un Bi-Encoder construye un espacio métrico para recuperar candidatos entre fuentes y un Cross-Encoder analiza conjuntamente los pares recuperados para decidir el vínculo. Esta descomposición evita aplicar un Transformer sobre el producto cartesiano completo y concentra el procesamiento más costoso en los pares plausibles.
+
+El experimento de serialización identificó \texttt{tok\_skipnull} como la configuración canónica. La combinación de tokens de bloques semánticos y omisión de valores nulos alcanzó la menor pérdida de validación y la mayor separación promedio entre positivos y negativos ($\Delta_{\mathrm{sep}}=11.2609$). Además de distinguir las variantes cuando Recall@5 y MRR se saturan, las curvas de entrenamiento mostraron que retirar los nulos permitió sostener la mejora de validación durante más épocas. El mejor Bi-Encoder obtuvo Recall@1 promedio de 0.9837, Recall@5 de 1.0000 y MRR de 0.9998 sobre las direcciones entre fuentes del conjunto de prueba.
+
+La etapa de recuperación conservó todos los positivos conocidos dentro del top-$20$ y permitió construir un conjunto de negativos difíciles para el Cross-Encoder. Sobre los 16,350 pares de prueba de ese conjunto, el clasificador obtuvo F1 de 0.9997, precisión de 1.0000 y recall de 0.9995 con el umbral fijado en validación. La inspección del único falso negativo reveló una inconsistencia en el \textit{silver standard}, lo que ilustra una contribución práctica adicional: las discrepancias entre el modelo y las etiquetas pueden priorizar casos para auditoría humana, sin que ello convierta al modelo en árbitro definitivo de la identidad.
+
+Finalmente, las visualizaciones UMAP aportaron una lectura cualitativa del espacio métrico aprendido. En particular, los registros de una misma entidad procedentes de Económico, Comorbilidad y Trabajo Social ocupan vecindades comunes aun con variaciones de orden y cobertura de atributos. Esta evidencia es coherente con las métricas de recuperación, pero se interpreta solo como diagnóstico visual: la calidad del sistema se sustenta en la evaluación cuantitativa y en las limitaciones del conjunto de referencia.
 
 
 % ==============================================================================
@@ -53,7 +52,6 @@ Las extensiones siguientes no son necesarias para interpretar los resultados act
 % ==============================================================================
 \section{Palabras finales}
 
-\textbf{Estructura:}
-\begin{itemize}
-    \item Párrafo de cierre: la resolución de entidades en bases de datos clínicas fragmentadas es un problema vigente y relevante para la salud pública en México. Este trabajo demostró que un enfoque neuronal basado en aprendizaje métrico y modelos de lenguaje pre-entrenados puede alcanzar precisión de producción, siempre que se acompañe de un proceso cuidadoso de etiquetado y validación humana. La combinación de métodos determinísticos, revisión humana y representaciones semánticas profundas ofrece una ruta viable para integrar sistemas de información hospitalaria heredados sin requerir armonización previa de esquemas.
-\end{itemize}
+La resolución de entidades en bases de datos clínicas fragmentadas es un problema relevante para la continuidad de la información y el análisis de salud. Los resultados muestran que el aprendizaje métrico con modelos de lenguaje pre-entrenados puede construir representaciones útiles aun cuando los registros provienen de fuentes con esquemas, formatos y niveles de completitud distintos. Sin embargo, el desempeño observado se refiere al conjunto de referencia disponible y no equivale a una validación clínica ni a una garantía de cobertura sobre todas las coincidencias reales.
+
+La contribución central del trabajo es, por tanto, un baseline neuronal reproducible para ligado de registros tabulares en español, junto con una evaluación que separa recuperación, reclasificación e incertidumbre. Su uso responsable requiere mantener la revisión humana como parte del proceso, auditar las discrepancias con las etiquetas y volver a validar el método antes de transferirlo a otras instituciones. Bajo esas condiciones, la combinación de reglas de construcción del conjunto de referencia, validación experta y representaciones semánticas aprendidas ofrece una ruta para integrar sistemas clínicos heredados sin exigir una armonización completa previa de sus esquemas.
