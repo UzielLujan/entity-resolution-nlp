@@ -47,9 +47,6 @@ manuscript/**/*.xdv
 .obsidian/
 .trash/
 
-AGENTS.md
-
-
 # documentacion
 docs/Anexos/
 docs/presentation/
