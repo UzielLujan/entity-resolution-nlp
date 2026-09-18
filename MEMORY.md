@@ -45,12 +45,23 @@
 - Capítulo 6 (Conclusiones): redactado con contribuciones, límites, trabajo futuro y cierre; requiere revisión académica final.
 - La bibliografía oficial se carga exclusivamente desde `manuscript/Bibliografia/referencias.bib`; el archivo histórico `Capitulos/referencias.tex` era obsoleto y se retiró.
 - Pendiente relevante: revisar referencias bibliográficas cruzadas.
+- La prioridad es cerrar una primera versión basada en el pipeline neuronal ya ejecutado. El baseline clásico end-to-end es un desarrollo tentativo y preventivo: no se incorporará todavía como resultado formal y permanecerá mencionado como trabajo futuro.
 
 ## Pendientes y decisiones
 
 ### Resultados de tesis
 
 1. **Revisión de métricas cerrada** — Δseparabilidad usa todos los negativos disponibles por consulta. Los cuatro Bi-Encoders y los tres baselines zero-shot fueron reevaluados sobre test; `tok_skipnull` conserva la mayor separación promedio (11.2609).
+2. **Auditoría de Hard Negative Mining** — Auditar el dataset y reconstruir con precisión el procedimiento histórico de HNM antes de modificarlo. En particular, verificar el efecto de seleccionar el Top-K global y filtrar después los registros de la misma fuente, y contrastarlo con el protocolo que invalida candidatos intra-fuente antes del Top-K.
+3. **Decisión sobre HNM y K** — Después de la auditoría, decidir si se conserva o corrige el orden del filtrado y justificar `K=20` experimentalmente o documentarlo como una decisión no optimizada. Si se adopta el filtrado cross-source antes del Top-K, será necesario regenerar los pares HNM, reentrenar el Cross-Encoder y actualizar sus resultados.
+
+### Manuscrito
+
+1. **Metodología del Bi-Encoder** — Corregir en el Capítulo 4 la longitud máxima del checkpoint canónico: los cuatro modelos oficiales fueron entrenados con `max_seq_length=512`, no 384.
+2. **Referencias** — Revisar las referencias bibliográficas y las referencias cruzadas del manuscrito.
+3. **Revisión académica** — Realizar la revisión académica final de los seis capítulos.
+4. **Front matter** — Completar los agradecimientos y actualizar la fecha de portada cuando corresponda.
+5. **Alcance acordado** — Mantener la ablación, K-fold, ANN/FAISS, el baseline clásico formal y el reentrenamiento bidireccional del Cross-Encoder como trabajo futuro; no bloquean la primera versión neuronal del manuscrito.
 
 ### Código y documentación
 
@@ -200,10 +211,24 @@ Se realizó un diagnóstico usando solo los nombres de los registros para determ
 
 ---
 
+### [Septiembre 2026] Fase 13 — Baseline clásico y diagnóstico metodológico
+
+- Se implementó un reranker clásico con TF-IDF de palabras y caracteres, características simétricas de pares y regresión logística. Sobre el HNM neuronal histórico obtuvo F1=0.9811, precisión=0.9848 y recall=0.9774; el Cross-Encoder conserva ventaja con F1=0.9997.
+- Se implementó el pipeline clásico end-to-end independiente: ajuste TF-IDF solo en train, selección de representación y umbral en validación, minería Top-K propia, evaluación condicional y end-to-end, hashes de artefactos y validaciones contra entity leakage.
+- Se ejecutaron las cuatro variantes. F1 de test: `tok_skipnull`=0.9699, `tok_keepnull`=0.9677, `notok_skipnull`=0.9893 y `notok_keepnull`=0.9847. Todas alcanzaron Recall@20=1.0000 y cero falsos negativos de recuperación.
+- La comparación directa sobre `notok_skipnull` confirmó que TF-IDF combined (MRR=0.9995, Recall@20=1.0000, Delta=5.8485) supera ampliamente a BETO, RoBERTa-biomedical y paraphrase-multilingual zero-shot, cuyos MRR macro fueron 0.0184, 0.0183 y 0.0248.
+- Los cosenos TF-IDF son menores que los neuronales afinados, pero discriminativos: `tok_skipnull` obtuvo medias 0.3463 en positivos y 0.1204 en negativos, con Delta=6.2120. BETO + MNRL obtuvo 0.9626, 0.0092 y Delta=11.2609. Los zero-shot asignaron cosenos altos a ambas clases y Delta cercano a 0.15.
+- Se confirmó una circularidad metodológica central: nombre y expediente construyen principalmente el silver standard y permanecen en el texto usado por los modelos. No hay `entity_id` ni `record_id` serializados, pero TF-IDF puede reproducir casi directamente la regla de etiquetado.
+- Se detectó una desalineación en HNM: el flujo neuronal histórico selecciona Top-K global y filtra misma fuente después; el clásico corregido invalida misma fuente antes de Top-K. La primera regla desperdicia slots y no es equivalente para entrenar o evaluar rerankers.
+- No se encontró una justificación experimental formal para K=20. Queda propuesto un análisis de sensibilidad sobre K en validación y una ablación clásica mínima: completo, solo nombre-expediente, sin expediente, sin nombre y sin ambos.
+- El resumen completo, limitaciones, artefactos y decisiones pendientes viven en `docs/Anexos/resultados_baseline_clasico_y_diagnostico_metodologico.md`. El manuscrito no fue modificado; primero se discutirán los resultados con el asesor.
+
+---
+
 ## Trabajo futuro fuera del alcance actual
 
 - **Robustez de HNM y recuperación:** evaluar un pool de candidatos que incluya entidades de una sola base, filtrar candidatos inválidos antes del Top-K, conservar y reportar la direccionalidad de recuperación, y añadir validaciones, procedencia y métricas de distribución de los artefactos. Detalle y priorización: `docs/Anexos/propuestas_robustez_hnm_kfold.md`.
-- **Baseline clásico del re-ranker:** sobre el mismo conjunto HNM, comparar el Cross-Encoder con TF-IDF por registro, características de par y un clasificador clásico; el baseline end-to-end TF-IDF + Top-K queda como alternativa posterior. Detalle: `docs/Anexos/narrativa_baselines_y_propuesta.md`.
+- **Ablación clásica de identidad:** ejecutar primero el estudio mínimo con registro completo, solo nombre-expediente, sin expediente, sin nombre y sin ambos; después decidir si se justifica repetir la ablación con modelos neuronales. Detalle: `docs/Anexos/resultados_baseline_clasico_y_diagnostico_metodologico.md`.
 - **Invariancia al orden y truncamiento del Cross-Encoder:** Se revisó que hay truncamiento de los registros en el Cross-Encoder `A | B`, la concatenación supera el límite de 512 tokens. La propuesta es reentrenar y evaluar cada par en ambas orientaciones (`A | B` y `B | A`), truncando un único registro por pasada para que se observe completo en una de ellos; combinar ambas puntuaciones y contrastar con lo reportado actualmente.
 - **Auditoría de los casos difíciles del Bi-Encoder:** buscar aquellos registros que no se hayan etiquetado correctamente, aquellos con coseno alto o bajo y que difieran según su `entity_id`. Detalle: `docs/Anexos/propuesta_incertidumbre.md`.
 - **Robustez de la estimación de generalización:** decidir si ejecutar validación cruzada, preferentemente tras auditar el flujo actual; un K-fold del pipeline completo requiere reentrenar el Bi-Encoder (varias veces) y regenerar HNM en cada fold (depende del encoding). Detalle: `docs/Anexos/propuestas_robustez_hnm_kfold.md`.
