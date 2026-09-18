@@ -43,6 +43,7 @@ MODELS_DIR: Path = MODELING_DIR / "models"
 PRETRAINED_MODELS_DIR: Path = MODELS_DIR / "pretrained"
 BIENCODER_MODELS_DIR: Path = MODELS_DIR / "biencoder"
 CROSSENCODER_MODELS_DIR: Path = MODELS_DIR / "crossencoder"
+BASELINE_MODELS_DIR: Path = MODELS_DIR / "baselines"
 
 EMBEDDINGS_DIR: Path = MODELING_DIR / "embeddings"
 
@@ -77,6 +78,10 @@ def pairs_path(split_name: str, variant: str = DEFAULT_VARIANT) -> Path:
         raise ValueError("split_name debe ser train, val o test")
     return variant_data_dir(variant) / f"pairs_{split_name}.parquet"
 
+def classical_pairs_dir(variant: str = DEFAULT_VARIANT) -> Path:
+    """Directorio de candidatos generados por la recuperacion TF-IDF."""
+    return variant_data_dir(variant) / "classical_tfidf"
+
 def embeddings_path(variant: str = DEFAULT_VARIANT) -> Path:
     """Embeddings exportados para una variante."""
     return EMBEDDINGS_DIR / _validate_variant(variant) / "embeddings.parquet"
@@ -88,6 +93,10 @@ def biencoder_run_dir(run_name: str, variant: str = DEFAULT_VARIANT) -> Path:
 def crossencoder_run_dir(run_name: str, variant: str = DEFAULT_VARIANT) -> Path:
     """Directorio de un run del Cross-Encoder."""
     return CROSSENCODER_MODELS_DIR / _validate_variant(variant) / run_name
+
+def baseline_run_dir(run_name: str, variant: str = DEFAULT_VARIANT) -> Path:
+    """Directorio de un run de baseline clásico."""
+    return BASELINE_MODELS_DIR / _validate_variant(variant) / run_name
 
 # ── Validación del entorno ────────────────────────────────────────────────────
 def check_paths() -> None:
