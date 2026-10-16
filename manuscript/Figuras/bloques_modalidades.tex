@@ -1,81 +1,119 @@
-% Diagrama: Bloques semánticos como modalidades del paciente
+% Tres niveles de objetos: bloques, registros y atributos de sus soportes.
 \begin{figure}[H]
 \centering
+\begingroup
+\setstretch{1}
 \begin{tikzpicture}[
-    cell/.style={align=center, font=\tiny\ttfamily},
-    rowbox/.style={draw, rounded corners=1pt, fill=white, inner sep=5pt},
-    bloc/.style={draw, rounded corners=3pt, inner sep=2pt},
-    rowlabel/.style={anchor=east, font=\footnotesize\sffamily},
-    tab/.style={draw, rounded corners=1pt, fill=white, inner xsep=4pt, inner ysep=1pt, font=\scriptsize\sffamily\bfseries}]
+    attribute/.style={align=center, font=\scriptsize\sffamily,
+        text=black!85, draw=black!40, fill=white, line width=0.35pt,
+        rounded corners=1.5pt, inner xsep=2.5pt, inner ysep=1pt,
+        text height=6pt, text depth=1.5pt, minimum width=0.95cm},
+    record/.style={rounded corners=3pt, line width=0.65pt},
+    block/.style={rounded corners=5pt, line width=0.5pt},
+    blockname/.style={align=center, font=\fontsize{9}{11}\selectfont\sffamily\bfseries,
+        inner sep=1pt},
+    recordname/.style={align=center, font=\scriptsize\sffamily\bfseries,
+        text=black!75, inner sep=1pt}]
 
-\definecolor{cID}{HTML}{4A90D9}
-\definecolor{cCLIN}{HTML}{E74C3C}
-\definecolor{cGEO}{HTML}{2ECC71}
-\definecolor{cSOCIO}{HTML}{F39C12}
-\definecolor{cADMIN}{HTML}{9B59B6}
+% Colores moderados: la forma y el texto también identifican los objetos.
+\definecolor{cID}{HTML}{477DA5}
+\definecolor{cCLIN}{HTML}{B36565}
+\definecolor{cGEO}{HTML}{4B907C}
+\definecolor{cSOCIO}{HTML}{B58A42}
+\definecolor{cADMIN}{HTML}{8772A6}
 
 \pgfmathsetmacro{\cw}{2.4}
-\pgfmathsetmacro{\cs}{0.2}
-\pgfmathsetmacro{\rh}{1.2}
-\pgfmathsetmacro{\rs}{0.2}
+\pgfmathsetmacro{\cs}{0.25}
+\pgfmathsetmacro{\rh}{0.96}
+\pgfmathsetmacro{\rs}{0.54}
 
 \pgfmathsetmacro{\xA}{0}
 \pgfmathsetmacro{\xB}{\cw+\cs}
 \pgfmathsetmacro{\xC}{2*(\cw+\cs)}
 \pgfmathsetmacro{\xD}{3*(\cw+\cs)}
 \pgfmathsetmacro{\xE}{4*(\cw+\cs)}
-\pgfmathsetmacro{\tw}{5*\cw+4*\cs}
-\pgfmathsetmacro{\bw}{\cw}
-\pgfmathsetmacro{\bh}{3*\rh+2*\rs+0.3}
-
 \pgfmathsetmacro{\yA}{0}
 \pgfmathsetmacro{\yB}{-\rh-\rs}
 \pgfmathsetmacro{\yC}{-2*\rh-2*\rs}
+\pgfmathsetmacro{\leftedge}{\xA-0.5*\cw-1.55}
+\pgfmathsetmacro{\rightedge}{\xE+0.5*\cw+0.25}
+\pgfmathsetmacro{\labelx}{\leftedge+0.7}
+\pgfmathsetmacro{\bandtop}{\yA+0.5*\rh+1.0}
+\pgfmathsetmacro{\bandbottom}{\yC-0.5*\rh-0.45}
+\pgfmathsetmacro{\labely}{\yA+0.5*\rh+0.53}
 
-% BARRAS VERTICALES (bloques)
-\node[bloc, fill=cID!10,   minimum width=\bw*1cm, minimum height=\bh*1cm] at (\xA*1cm, 0) {};
-\node[bloc, fill=cCLIN!10, minimum width=\bw*1cm, minimum height=\bh*1cm] at (\xB*1cm, 0) {};
-\node[bloc, fill=cGEO!10,  minimum width=\bw*1cm, minimum height=\bh*1cm] at (\xC*1cm, 0) {};
-\node[bloc, fill=cSOCIO!10,minimum width=\bw*1cm, minimum height=\bh*1cm] at (\xD*1cm, 0) {};
-\node[bloc, fill=cADMIN!10,minimum width=\bw*1cm, minimum height=\bh*1cm] at (\xE*1cm, 0) {};
+% Fondo: cada bloque es un rectángulo con su nombre en el interior.
+% Las partes visibles entre registros mantienen su continuidad perceptual.
+\foreach \x/\col/\name in {
+    \xA/cID/Identidad, \xB/cCLIN/Clínica, \xC/cGEO/Geografía,
+    \xD/cSOCIO/Socioeconómico, \xE/cADMIN/Administrativo} {
+    \draw[block, draw=\col!65, fill=\col!9]
+        ({\x-0.5*\cw},\bandbottom) rectangle
+        ({\x+0.5*\cw},\bandtop);
+    \node[blockname, text=\col!55!black] at (\x,\labely) {\name};
+}
 
-% Etiquetas de bloques (arriba)
-\node[above=2mm, font=\small\ttfamily\bfseries] at (\xA*1cm, 0.5*\bh*1cm) {\texttt{[BLK\_ID]}};
-\node[above=2mm, font=\small\ttfamily\bfseries] at (\xB*1cm, 0.5*\bh*1cm) {\texttt{[BLK\_CLIN]}};
-\node[above=2mm, font=\small\ttfamily\bfseries] at (\xC*1cm, 0.5*\bh*1cm) {\texttt{[BLK\_GEO]}};
-\node[above=2mm, font=\small\ttfamily\bfseries] at (\xD*1cm, 0.5*\bh*1cm) {\texttt{[BLK\_SOCIO]}};
-\node[above=2mm, font=\small\ttfamily\bfseries] at (\xE*1cm, 0.5*\bh*1cm) {\texttt{[BLK\_ADMIN]}};
+% Primer plano: el relleno opaco oculta los bloques y sus bordes.
+% El halo blanco evita uniones en T entre los contornos de ambos objetos.
+\foreach \y/\name in {\yA/A,\yB/B,\yC/C} {
+    \draw[record, fill=white, draw=white, line width=3pt]
+        (\leftedge,{\y-0.5*\rh}) rectangle (\rightedge,{\y+0.5*\rh});
+    \node[recordname] at (\labelx,\y) {Registro\\\name};
+}
 
-% Renglón 1: Comorbilidad
-\node[rowbox, minimum width=\tw*1cm, minimum height=\rh*1cm] at (0.5*\tw*1cm, \yA*1cm) {};
-\node[tab, anchor=south] at (0.5*\tw*1cm, \yA*1cm + 0.5*\rh*1cm + 0.12cm) {Comorbilidad};
-\node[cell] at (\xA*1cm, \yA*1cm) {nombre};
-\node[cell] at (\xB*1cm, \yA*1cm) {diagnósticos\\comorbilidades};
-\node[cell, text=gray!40] at (\xC*1cm, \yA*1cm) {---};
-\node[cell, text=gray!40] at (\xD*1cm, \yA*1cm) {---};
-\node[cell] at (\xE*1cm, \yA*1cm) {expediente\\fechas};
+% Sólo se colorean las intersecciones que aportan un componente.
+% No se dibujan contornos de celda: el registro sigue siendo un solo objeto.
+\foreach \y in {\yA,\yB,\yC} {
+    \foreach \x/\col in {\xA/cID,\xB/cCLIN,\xE/cADMIN} {
+        \fill[\col!23] ({\x-0.5*\cw},{\y-0.5*\rh})
+            rectangle ({\x+0.5*\cw},{\y+0.5*\rh});
+    }
+}
+\foreach \y in {\yB,\yC} {
+    \foreach \x/\col in {\xC/cGEO,\xD/cSOCIO} {
+        \fill[\col!23] ({\x-0.5*\cw},{\y-0.5*\rh})
+            rectangle ({\x+0.5*\cw},{\y+0.5*\rh});
+    }
+}
 
-% Renglón 2: Económico
-\node[rowbox, minimum width=\tw*1cm, minimum height=\rh*1cm] at (0.5*\tw*1cm, \yB*1cm) {};
-\node[tab, anchor=south] at (0.5*\tw*1cm, \yB*1cm + 0.5*\rh*1cm + 0.12cm) {Económico};
-\node[cell] at (\xA*1cm, \yB*1cm) {nombre\\edad};
-\node[cell] at (\xB*1cm, \yB*1cm) {resultado\\etiq\_covid};
-\node[cell] at (\xC*1cm, \yB*1cm) {estado\\municipio};
-\node[cell] at (\xD*1cm, \yB*1cm) {escolaridad\\ocupación};
-\node[cell] at (\xE*1cm, \yB*1cm) {expediente\\estancia\\gastos};
+% Contornos continuos de los registros, por encima de las zonas coloreadas.
+\foreach \y in {\yA,\yB,\yC} {
+    \draw[record, draw=black!60] (\leftedge,{\y-0.5*\rh})
+        rectangle (\rightedge,{\y+0.5*\rh});
+}
 
-% Renglón 3: Trabajo Social
-\node[rowbox, minimum width=\tw*1cm, minimum height=\rh*1cm] at (0.5*\tw*1cm, \yC*1cm) {};
-\node[tab, anchor=south] at (0.5*\tw*1cm, \yC*1cm + 0.5*\rh*1cm + 0.12cm) {T. Social};
-\node[cell] at (\xA*1cm, \yC*1cm) {apellidos\\nombre\\fecha\_nac};
-\node[cell] at (\xB*1cm, \yC*1cm) {diagnóstico};
-\node[cell] at (\xC*1cm, \yC*1cm) {delegación\\estado};
-\node[cell] at (\xD*1cm, \yC*1cm) {escolaridad\\ocupación\\nivel};
-\node[cell] at (\xE*1cm, \yC*1cm) {expediente\\historia\\fecha\_elab};
+% Tercer plano: cada atributo es un objeto opaco e independiente.
+% Se muestran ejemplos con nombres descriptivos, no soportes exhaustivos.
+% Los soportes con un único ejemplo lo sitúan en el centro del registro.
+\node[attribute] at (\xA,\yA) {nombre};
+\node[attribute] at (\xB,\yC) {diagnóstico};
+
+% Pares de ejemplos: dos recuadros separados, con color visible alrededor.
+% No hay objetos atributo en las intersecciones ausentes del registro A.
+\foreach \x/\y/\first/\second in {
+    \xB/\yA/diagnóstico/comorbilidad,
+    \xE/\yA/expediente/fecha de ingreso,
+    \xA/\yB/nombre/edad,
+    \xB/\yB/resultado/etiquetas COVID,
+    \xC/\yB/estado/municipio,
+    \xD/\yB/escolaridad/ocupación,
+    \xE/\yB/expediente/estancia,
+    \xA/\yC/apellido paterno/nombre,
+    \xC/\yC/delegación/estado,
+    \xD/\yC/escolaridad/ocupación,
+    \xE/\yC/expediente/historia} {
+    \node[attribute] at (\x,{\y+0.21}) {\first};
+    \node[attribute] at (\x,{\y-0.21}) {\second};
+}
 
 \end{tikzpicture}
-\caption{Bloques semánticos como modalidades. Las columnas verticales representan los cinco bloques;
-las franjas horizontales son registros de cada base. Las intersecciones muestran ejemplos del soporte;
-las celdas vacías (\texttt{---}) indican bloques ausentes por diseño.}
+\endgroup
+\caption[Registros como composición de bloques semánticos]{Registros como composición de
+bloques semánticos. Los rectángulos horizontales A, B y C ilustran registros de Comorbilidad,
+Económico y Trabajo Social, respectivamente; los verticales representan los bloques,
+análogos a modalidades de información. Cada recuadro interior representa un atributo;
+los atributos de una fuente asociados a un bloque constituyen su soporte, del que se
+muestran algunos ejemplos. Los espacios sin color en A indican bloques ausentes por diseño:
+cada registro se compone de los bloques disponibles, sin requerir los cinco.}
 \label{fig:bloques_modalidades}
 \end{figure}
