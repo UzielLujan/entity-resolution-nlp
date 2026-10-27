@@ -83,7 +83,7 @@ No se observaron positivos difíciles en las tres particiones: todos los pares p
 
 El Cross-Encoder recibe los pares plausibles recuperados por el Bi-Encoder y decide si ambos registros pertenecen a la misma entidad. A diferencia de la primera etapa, procesa ambos textos conjuntamente y puede contrastar atributos específicos del par antes de emitir una puntuación. Se entrenó con BETO durante tres épocas sobre 8,513 positivos y 69,122 negativos difíciles, usando BCE ponderada con $\texttt{pos\_weight}=8$. La pérdida de validación descendió de 0.00233 en la primera época a $6.51\times10^{-5}$ en la tercera, que se seleccionó como checkpoint final.
 
-La regla de decisión se ajustó de forma independiente al entrenamiento. Con el checkpoint final fijo, se puntuaron los 16,266 pares de validación y se evaluaron 51 umbrales uniformemente espaciados entre cero y uno. El máximo F1 de validación fue 1.0000 con $\tau=0.12$. Este umbral se congeló antes de evaluar el conjunto de prueba, por lo que las cifras de test no intervienen en su selección.
+La regla de decisión se ajustó de forma independiente al entrenamiento. Con el checkpoint final fijo, se puntuaron los 16,266 pares de validación y se evaluaron 51 umbrales uniformemente espaciados entre cero y uno. El máximo F1 de validación fue 1.0000 con $\tau=0.12$. Este umbral se congeló antes de evaluar el conjunto de prueba, por lo que las cifras de test reportadas en la Tabla~\ref{tab:cross_encoder_results} no intervienen en su selección.
 
 \begin{table}[htbp]
     \centering
