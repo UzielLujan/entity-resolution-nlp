@@ -118,26 +118,26 @@ Por otro lado, enfoques basados en fragmentos de texto o $q$-gramas~\cite{ukkone
 Más allá de la comparación de una sola cadena, el modelo de Fellegi-Sunter~\cite{fellegi1969} proporcionó la base teórica para combinar múltiples comparaciones de atributos. En este modelo, cada atributo recibe un peso basado en su capacidad de discriminación; por ejemplo, una coincidencia en un apellido poco común tiene un peso mayor que una coincidencia en un nombre frecuente. En contextos textuales, también pueden emplearse técnicas de ponderación de términos como TF-IDF (\textit{Term Frequency-Inverse Document Frequency})~\cite{salton1988}, que permiten identificar qué palabras dentro de un registro son más informativas para el proceso de vinculación.
 
 \subsection{Limitaciones de la comparación sintáctica}
-Las métricas sintácticas descritas anteriormente resultan útiles cuando las diferencias entre los registros se limitan a variaciones superficiales en su escritura. Sin embargo, sus comparaciones se derivan principalmente de la coincidencia de caracteres o tokens y no representan explícitamente el significado ni el contexto de la información~\cite{christen2012,barlaug2021}. En consecuencia, dos valores con formas léxicas distintas pueden recibir una similitud baja aun cuando sean semánticamente equivalentes; de manera inversa, dos cadenas similares pueden corresponder a entidades diferentes. En las bases de datos clínicas, la variación terminológica, las abreviaturas y la presencia de texto libre acentúan esta limitación. Esta brecha motiva la transición hacia representaciones vectoriales aprendidas y modelos neuronales para el emparejamiento de entidades~\cite{barlaug2021,li2020}.
+Las métricas sintácticas descritas anteriormente resultan útiles cuando las diferencias entre los registros se limitan a variaciones morfológicas y léxicas en su escritura. Sin embargo, sus comparaciones se derivan principalmente de la coincidencia de caracteres o tokens y no representan explícitamente el significado ni el contexto de la información~\cite{christen2012,barlaug2021}. En consecuencia, dos valores con formas léxicas distintas pueden recibir una similitud baja aun cuando sean semánticamente equivalentes; de manera inversa, dos cadenas similares pueden corresponder a entidades diferentes. En las bases de datos clínicas, la variación terminológica, las abreviaturas y la presencia de texto libre acentúan esta limitación. Esta brecha motiva la transición hacia representaciones vectoriales aprendidas y modelos de redes neuronales artificiales para el emparejamiento de entidades~\cite{barlaug2021,li2020}.
 
 % 2.3 EL CAMBIO DE PARADIGMA: APRENDIZAJE PROFUNDO Y MODELOS DE LENGUAJE PRE-ENTRENADOS
 
 \section{Aprendizaje profundo y modelos de lenguaje pre-entrenados}
 
-Los avances recientes en los enfoques neuronales para la resolución de entidades se han beneficiado de la evolución de las representaciones vectoriales en el procesamiento de lenguaje natural (PLN)~\cite{barlaug2021}. A diferencia de las métricas léxicas descritas anteriormente, los \textit{embeddings} densos codifican patrones distribucionales en espacios continuos, lo que permite aprovechar similitudes que no se reducen a coincidencias exactas de caracteres o tokens~\cite{li2020}. Sin embargo, las ventajas del aprendizaje profundo no son uniformes para todos los tipos de datos: el estudio sistemático de Mudgal et al.~\cite{mudgal2018} encontró sus principales beneficios en problemas de emparejamiento con registros textuales o ruidosos, mientras que en datos estructurados y limpios los métodos convencionales podían conservar un desempeño competitivo.
+Los avances recientes en los enfoques de redes neuronales para la resolución de entidades se han beneficiado de la evolución de las representaciones vectoriales en el procesamiento de lenguaje natural (PLN)~\cite{barlaug2021}. A diferencia de las métricas léxicas descritas anteriormente, los \textit{embeddings} densos codifican los datos de entrada en espacios vectoriales donde pueden calcularse medidas de similaridad, lo que permite aprovechar similitudes que no se reducen a coincidencias exactas de caracteres o tokens~\cite{li2020}. Sin embargo, las ventajas del aprendizaje profundo no son uniformes para todos los tipos de datos: el estudio sistemático de Mudgal et al.~\cite{mudgal2018} encontró sus principales beneficios en problemas de emparejamiento con registros textuales o ruidosos, mientras que en datos estructurados y limpios los métodos convencionales podían conservar un desempeño competitivo.
 
 \subsection{De representaciones dispersas a vectores densos}
-Las representaciones tradicionales del texto, como los vectores de conteos y TF-IDF, asignan dimensiones independientes a los términos del vocabulario, lo que produce vectores dispersos de alta dimensionalidad~\cite{salton1988}. Aunque estas representaciones permiten cuantificar la importancia y coincidencia de los términos, no construyen por sí mismas un espacio continuo en el que palabras relacionadas ocupen posiciones cercanas.
+Las representaciones tradicionales del texto, como los vectores de conteos y TF-IDF, asignan dimensiones que dependen de la cantidad de términos del vocabulario, lo que produce vectores dispersos de alta dimensionalidad~\cite{salton1988}. Aunque estas representaciones permiten cuantificar la importancia y coincidencia de los términos, no construyen por sí mismas un espacio vectorial en el que palabras relacionadas ocupen posiciones cercanas.
 
-Uno de los antecedentes fundamentales del modelado semántico mediante redes neuronales es el modelo de lenguaje probabilístico propuesto por Bengio et al.~\cite{bengio2003}, que permitió aprender representaciones distribuidas de palabras conjuntamente con la función de probabilidad de secuencias textuales.
+Uno de los antecedentes fundamentales del modelado semántico mediante redes neuronales es el modelo de lenguaje probabilístico propuesto por Bengio et al.~\cite{bengio2003}. En lugar de estimar la probabilidad de una oración mediante conteos discretos de $n$-gramas, este modelo asocia cada palabra del vocabulario con un vector de características reales y entrena una red neuronal para predecir la siguiente palabra a partir de los vectores de las palabras previas. Al optimizar simultáneamente los pesos de la red y los vectores de entrada, palabras que aparecen en contextos similares adquieren representaciones vectoriales cercanas.
 
 \paragraph{Representaciones estáticas.}
-Este paradigma se consolidó con Word2Vec~\cite{mikolov2013}, que aprende vectores a partir de los contextos locales en los que aparecen las palabras, y con GloVe~\cite{pennington2014}, que incorpora estadísticas globales de coocurrencia del corpus. En ambos casos, las regularidades lingüísticas se representan mediante relaciones geométricas en un espacio continuo.
+Este paradigma se consolidó con Word2Vec~\cite{mikolov2013}, que aprende vectores a partir de los contextos locales en los que aparecen las palabras, y con GloVe~\cite{pennington2014}, que incorpora estadísticas globales de co-ocurrencia del corpus. En ambos casos, las regularidades lingüísticas se representan mediante relaciones geométricas en un espacio continuo.
 
-FastText~\cite{bojanowski2017} extendió este enfoque al representar cada palabra a partir de unidades subléxicas o $n$-gramas de caracteres. Esta composición permite obtener representaciones para palabras poco frecuentes o no observadas durante el entrenamiento y aprovechar regularidades morfológicas, lo que resulta útil en vocabularios amplios y especializados.
+FastText~\cite{bojanowski2017} extendió este enfoque al representar cada palabra como la suma de los vectores de sus $n$-gramas de caracteres, además del vector de la palabra completa. De este modo, aunque una palabra sea poco frecuente, contenga un error tipográfico o no haya sido observada durante el entrenamiento, el modelo puede construir su vector a partir de las raíces, prefijos o fragmentos de caracteres que comparte con otras palabras conocidas.
 
 \paragraph{Representaciones contextualizadas mediante redes recurrentes.}
-A pesar de sus diferencias, Word2Vec, GloVe y FastText producen representaciones estáticas: una palabra recibe el mismo vector independientemente del contexto en que aparezca. Así, el término ``alta'' tendría una única representación aunque pudiera referirse al egreso hospitalario o describir una magnitud elevada.
+A pesar de sus diferencias en la forma de construir el vocabulario, Word2Vec, GloVe y FastText producen representaciones estáticas: una vez finalizado el entrenamiento, cada forma léxica se asocia con un único vector fijo, sin tomar en cuenta las palabras que la acompañan dentro de una oración específica. Así, el término ``alta'' tendría una única representación aunque pudiera referirse al egreso hospitalario o describir una magnitud elevada.
 
 Los modelos contextuales abordaron esta limitación al calcular la representación de cada palabra en función de la secuencia completa. ELMo~\cite{peters2018}, basado en un modelo de lenguaje bidireccional con redes LSTM, genera vectores que cambian según el contexto y permiten modelar fenómenos como la polisemia. Esta distinción entre representaciones estáticas y contextualizadas proporciona el antecedente conceptual para las arquitecturas basadas en atención descritas en la subsección siguiente.
 
@@ -158,10 +158,10 @@ El Transformer emplea además atención multicabeza (\textit{Multi-Head Attentio
 \label{eq:multihead}
 \end{equation}
 
-donde $\text{head}_i = \text{Attention}(Q W_i^Q, K W_i^K, V W_i^V)$. En registros tabulares serializados, este mecanismo permite que los tokens asociados con distintos atributos y valores intercambien información dentro de una representación contextual conjunta~\cite{li2020}.
+donde cada $\text{head}_i = \text{Attention}(Q W_i^Q, K W_i^K, V W_i^V)$ aplica la ecuación~\ref{eq:scaled_dot_product_attention}. En registros tabulares serializados, la combinación multicabeza de la ecuación~\ref{eq:multihead} permite que los tokens asociados con distintos atributos y valores intercambien información dentro de una representación contextual conjunta~\cite{li2020}.
 
 \subsection{Modelos de lenguaje pre-entrenados (PLMs)}
-La aplicación de Transformers a tareas de procesamiento de lenguaje natural se fortaleció mediante el preentrenamiento sobre corpus textuales de gran escala. Modelos como BERT (\textit{Bidirectional Encoder Representations from Transformers})~\cite{devlin2019} aprenden representaciones bidireccionales mediante objetivos autosupervisados y posteriormente pueden adaptarse a tareas específicas mediante ajuste fino (\textit{fine-tuning}). RoBERTa~\cite{liu2019} mostró que modificaciones en los datos, los hiperparámetros y el procedimiento de preentrenamiento podían mejorar el desempeño de este paradigma.
+La aplicación de Transformers a tareas de procesamiento de lenguaje natural se fortaleció mediante el preentrenamiento sobre corpus textuales de gran escala. Modelos como BERT (\textit{Bidirectional Encoder Representations from Transformers})~\cite{devlin2019} aprenden representaciones bidireccionales resolviendo una tarea de aprendizaje auto-supervisado y posteriormente pueden adaptarse a tareas específicas mediante ajuste fino (\textit{fine-tuning}). RoBERTa~\cite{liu2019} mostró que modificaciones en los datos, los hiperparámetros y el procedimiento de preentrenamiento podían mejorar el desempeño de este tipo de modelos.
 
 En esta tesis, los modelos preentrenados proporcionan el punto de partida para procesar las representaciones textuales de los registros del INER. El ajuste posterior adapta estos modelos a las dos tareas del sistema: construir un espacio métrico para la recuperación de candidatos y clasificar los pares de registros formados a partir de ellos.
 
@@ -175,7 +175,7 @@ La aplicación directa de modelos de lenguaje densos para evaluar el producto ca
 \subsection{Aprendizaje métrico y recuperación eficiente con Bi-Encoders}
 
 \paragraph{Aprendizaje métrico.}
-El aprendizaje métrico busca construir un espacio de representación en el que la proximidad entre dos objetos refleje una relación relevante para la tarea~\cite{kulis2013}. En el ligado de registros, esta relación corresponde a la pertenencia a una misma entidad. Sea $\sigma$ la función que transforma un registro en una secuencia textual serializada y sea $\mathcal{X}$ el conjunto de secuencias que pueden utilizarse como entrada del modelo. Para dos registros $a\in A$ y $b\in B$, se define
+El aprendizaje métrico busca construir un espacio de representación en el que la proximidad entre dos objetos refleje una relación relevante para la tarea~\cite{kulis2013}. En el ligado de registros entre dos bases de datos $A$ y $B$, con $n=|A|$ y $m=|B|$ registros respectivamente, esta relación corresponde a la pertenencia a una misma entidad del mundo real. Sea $e(\cdot)$ la función que asigna a cada registro el identificador de la entidad a la que pertenece, de modo que $e(a)=e(b)$ indica que $a\in A$ y $b\in B$ refieren a la misma entidad. Asimismo, sea $\sigma$ la función que transforma un registro en una secuencia textual serializada y sea $\mathcal{X}$ el conjunto de secuencias que pueden utilizarse como entrada. Para dos registros $a\in A$ y $b\in B$, se define
 
 \[
 x_a=\sigma(a),
@@ -183,7 +183,7 @@ x_a=\sigma(a),
 x_b=\sigma(b).
 \]
 
-El codificador neuronal es una función parametrizada
+El codificador basado en un modelo de red neuronal artificial (referido de forma abreviada en la literatura como codificador neuronal) es una función parametrizada
 
 \[
 f_\theta:\mathcal{X}\longrightarrow\mathbb{R}^{d},
@@ -197,15 +197,16 @@ que proyecta cada secuencia en un vector de dimensión fija. En consecuencia,
 \mathbf{z}_b=f_\theta(x_b).
 \]
 
-La función $f_\theta$ no constituye por sí misma el espacio de representación; este corresponde a su imagen
+La función $f_\theta$ no constituye por sí misma el espacio de representación; este corresponde al conjunto imagen
 
 \[
 \mathcal{Z}_\theta
 =f_\theta(\mathcal{X})
+=\bigl\{\,f_\theta(x)\in\mathbb{R}^{d} \;\big|\; x\in\mathcal{X}\,\bigr\}
 \subseteq\mathbb{R}^{d},
 \]
 
-cuya geometría depende de los parámetros aprendidos $\theta$. Cada elemento de $\mathcal{Z}_\theta$ es, por tanto, un \textit{embedding} a nivel de registro: una representación vectorial densa y aprendida que sintetiza la información contextual capturada por el Transformer a partir de la secuencia serializada. A diferencia de las representaciones estáticas de palabras descritas previamente, estos vectores representan registros completos y dependen tanto de su contenido como de la estructura proporcionada durante la serialización. De este modo, $\mathbf{z}_a$ y $\mathbf{z}_b$ son representaciones densas de $a$ y $b$, respectivamente, y sus relaciones geométricas codifican la similitud relevante para la tarea de ligado.
+cuya geometría depende de los parámetros aprendidos $\theta$. Cada elemento $\mathbf{z}\in\mathcal{Z}_\theta$ es, por tanto, un \textit{embedding} a nivel de registro: una representación vectorial densa y aprendida que sintetiza la información contextual capturada por el modelo a partir de la secuencia serializada. En nuestro caso, el modelo se basa en una arquitectura Transformer que, a diferencia de las representaciones estáticas de palabras descritas previamente, permite que estos vectores representen registros completos y dependan tanto de su contenido como de la estructura proporcionada durante la serialización. De este modo, $\mathbf{z}_a$ y $\mathbf{z}_b$ son representaciones densas de $a$ y $b$, respectivamente, y sus relaciones geométricas codifican la similitud relevante para la tarea de ligado.
 
 Al dotar $\mathcal{Z}_\theta$ con una función de similitud $\operatorname{sim}( \cdot)$, la similitud entre dos entradas puede escribirse como
 
@@ -225,19 +226,19 @@ e(a)\neq e(b)\Rightarrow
 \operatorname{sim}_\theta(x_a,x_b)\ \text{baja}.
 \]
 
-En este enfoque no necesariamente se aprende una función de distancia nueva. En particular, el sistema puede utilizar una medida fija, como la similitud coseno, mientras aprende $f_\theta$ para organizar los registros dentro del espacio de representación. La estrategia de optimización empleada para obtener esta organización se describe posteriormente en la subsección dedicada al aprendizaje contrastivo.
+En este enfoque no necesariamente se aprende una función de distancia nueva. En particular, el sistema puede utilizar una medida de similitud conocida y aplicable sobre espacios vectoriales dotados de producto interno, como la similitud coseno, mientras aprende $f_\theta$ para organizar los registros dentro del espacio de representación. La estrategia de optimización empleada para obtener esta organización se describe posteriormente en la subsección dedicada al aprendizaje contrastivo.
 
 \paragraph{Bi-Encoders y redes siamesas.}
 Una red siamesa está formada por dos ramas que comparten arquitectura y parámetros, de modo que ambas aplican la misma función de codificación a entradas diferentes~\cite{bromley1993}. El término Bi-Encoder indica que los dos elementos de una comparación se codifican de forma independiente; cuando ambas ramas comparten sus parámetros, como en este trabajo, el Bi-Encoder constituye además una arquitectura siamesa.
 
-Sentence-BERT (SBERT), propuesto por Reimers y Gurevych~\cite{reimers2019}, adapta modelos preentrenados como BERT a esta configuración. Cada secuencia se procesa por separado y las representaciones de sus tokens se agregan mediante una operación de \textit{pooling} para obtener un vector de dimensión fija. Formalmente, el codificador puede expresarse como $f_\theta=p\circ T_\theta$, donde $T_\theta$ es el Transformer que produce representaciones contextualizadas de los tokens y $p$ es la operación de \textit{pooling}. El mismo codificador se aplica de manera independiente a $x_a$ y $x_b$; sus tokens no interactúan directamente durante esta codificación. La comparación ocurre únicamente después de obtener $\mathbf{z}_a$ y $\mathbf{z}_b$, lo que permite calcular y almacenar cada representación una sola vez.
+Sentence-BERT (SBERT), propuesto por Reimers y Gurevych~\cite{reimers2019}, adapta modelos preentrenados como BERT a esta configuración. Cada secuencia se procesa por separado y las representaciones de sus tokens se agregan mediante una operación de \textit{pooling} para obtener un vector de dimensión fija. Formalmente, el codificador puede expresarse como la composición de funciones $f_\theta=p\circ T_\theta$, es decir, $f_\theta(x)=p\!\left(T_\theta(x)\right)$, donde $\circ$ denota el operador de composición, $T_\theta$ es el Transformer que produce las representaciones contextualizadas de los tokens de entrada y $p$ es la operación de \textit{pooling} que las agrega en un único vector. El mismo codificador se aplica de manera independiente a $x_a$ y $x_b$; sus tokens no interactúan directamente durante esta codificación. La comparación ocurre únicamente después de obtener $\mathbf{z}_a$ y $\mathbf{z}_b$, lo que permite calcular y almacenar cada representación una sola vez.
 
-Reimers y Gurevych evaluaron tres estrategias de agregación: la media de las representaciones de salida (MEAN), su máximo por dimensión (MAX) y la representación asociada con el token \texttt{[CLS]}. MEAN fue su configuración predeterminada y obtuvo el mejor desempeño en la ablación presentada, aunque su ventaja fue reducida bajo el objetivo de clasificación y más clara bajo el objetivo de regresión semántica~\cite{reimers2019}. Por esta razón, en este trabajo $p$ corresponde a una operación de \textit{mean pooling}.
+Reimers y Gurevych evaluaron tres estrategias de agregación: la media de las representaciones de salida (MEAN), su máximo por dimensión (MAX) y la representación asociada con el token \texttt{[CLS]}. MEAN fue su configuración predeterminada y obtuvo el mejor desempeño en la ablación presentada, aunque su ventaja fue reducida bajo el objetivo de clasificación y más clara bajo el objetivo de regresión semántica~\cite{reimers2019}. Por esta razón, en este trabajo $p$ corresponde a una operación de \textit{mean pooling}. La Figura~\ref{fig:bi_encoder_siamese} esquematiza esta codificación independiente de ambos registros mediante pesos compartidos.
 
 \input{Figuras/bi_encoder_siamese}
 
 \paragraph{Recuperación de candidatos.}
-Una vez codificados los registros, su similitud puede calcularse mediante el coseno entre sus representaciones. SBERT utiliza esta función para comparar embeddings durante la inferencia en tareas de similitud textual semántica~\cite{reimers2019}. El coseno depende del ángulo entre los vectores y es invariante ante cambios positivos en su magnitud; por tanto, la comparación se basa en la orientación relativa que las representaciones adquieren en el espacio aprendido:
+Una vez codificados los registros, su similitud puede calcularse mediante la similitud o distancia coseno entre sus representaciones. SBERT utiliza esta función para comparar embeddings durante la inferencia en tareas de similitud textual semántica~\cite{reimers2019}. El coseno depende del ángulo entre los vectores y es invariante ante cambios positivos en su magnitud; por tanto, la comparación se basa en la orientación relativa que las representaciones adquieren en el espacio aprendido:
 
 \[
 \operatorname{sim}_\theta(x_a,x_b)=
@@ -245,7 +246,7 @@ Una vez codificados los registros, su similitud puede calcularse mediante el cos
 {\lVert\mathbf{z}_a\rVert_2\lVert\mathbf{z}_b\rVert_2}.
 \]
 
-La normalización $L_2$ proyecta los embeddings sobre la hiperesfera unitaria y elimina el efecto de su magnitud, de modo que el coseno cuantifica únicamente su orientación relativa~\cite{manning2008}.
+La normalización mediante la norma $L_2$ proyecta los embeddings sobre la hiperesfera unitaria y elimina el efecto de su magnitud, de modo que el coseno cuantifica únicamente su orientación relativa~\cite{manning2008}.
 Sean
 \[
 \widehat{\mathbf{z}}_a=\mathbf{z}_a/\lVert\mathbf{z}_a\rVert_2 \quad \text{y} \quad \widehat{\mathbf{z}}_b=\mathbf{z}_b/\lVert\mathbf{z}_b\rVert_2
@@ -261,7 +262,7 @@ los embeddings normalizados. Entonces,
 =2-2\operatorname{sim}_\theta(x_a,x_b).
 \]
 
-Por lo tanto, sobre embeddings normalizados, maximizar la similitud coseno, maximizar el producto punto y minimizar la distancia euclidiana producen el mismo ordenamiento de vecinos. Esta equivalencia no se extiende a cualquier función de distancia. Por ejemplo, SBERT reportó resultados aproximadamente equivalentes al utilizar la distancia Manhattan negativa, pero se trata de un resultado empírico específico de sus experimentos y no de una identidad matemática general~\cite{reimers2019}. En este trabajo se adopta el coseno por su interpretación angular y por su compatibilidad directa con la normalización y la recuperación vectorial.
+Por lo tanto, sobre embeddings normalizados, maximizar la similitud coseno, maximizar el producto punto y minimizar la distancia euclidiana producen el mismo ordenamiento de vecinos. Esta equivalencia no se extiende a cualquier función de distancia. Por ejemplo, SBERT reportó resultados aproximadamente equivalentes al utilizar la distancia Manhattan negativa, pero se trata de un resultado empírico específico de sus experimentos y no de una identidad matemática general~\cite{reimers2019}. En este trabajo se utiliza la similaridad coseno por su interpretación angular y por su compatibilidad directa con la normalización y la recuperación vectorial.
 
 De esta forma, para un registro de consulta $a\in A$, la etapa de recuperación permite seleccionar los $K$ registros de $B$ con mayor similitud:
 
@@ -274,7 +275,7 @@ R_K(a)=
 Los elementos de $R_K(a)$ son los registros candidatos recuperados.
 
 \paragraph{Eficiencia computacional.}
-Un modelo que procesa conjuntamente cada par del producto cartesiano requiere $n\cdot m$ inferencias profundas. En cambio, un Bi-Encoder necesita únicamente $n+m$ codificaciones, porque cada registro se representa una sola vez y los vectores resultantes pueden reutilizarse~\cite{reimers2019}. Una búsqueda exacta todavía puede requerir $n\cdot m$ operaciones de similitud vectorial, aunque estas son considerablemente más económicas que las inferencias de un Transformer. Cuando se emplean índices de búsqueda aproximada de vecinos, la recuperación puede realizarse sin recorrer exhaustivamente toda la base. Finalmente, al conservar solo $K$ candidatos por consulta, la etapa de clasificación posterior evalúa como máximo $n\cdot K$ pares, con $K\ll m$.
+Dadas dos bases de datos $A$ y $B$ con $n=|A|$ y $m=|B|$ registros respectivamente, un modelo que procesa conjuntamente cada par del producto cartesiano $A\times B$ requiere $n\cdot m$ evaluaciones completas de la red. En cambio, un Bi-Encoder necesita únicamente $n+m$ codificaciones, porque cada registro se representa una sola vez y los vectores resultantes pueden reutilizarse~\cite{reimers2019}. Una búsqueda exacta todavía puede requerir $n\cdot m$ operaciones de similitud vectorial, aunque estas son considerablemente más económicas que las inferencias de un Transformer. Cuando se emplean índices de búsqueda aproximada de vecinos, la recuperación puede realizarse sin recorrer exhaustivamente toda la base. Finalmente, al conservar solo $K$ candidatos por consulta, la etapa de clasificación posterior evalúa como máximo $n\cdot K$ pares, con $K\ll m$.
 
 \subsection{Clasificación fina con Cross-Encoders}
 
@@ -300,7 +301,7 @@ T_\phi(x_{a,b})
 \in\mathbb R^{L\times h},
 \]
 
-donde $L$ es la longitud total de la secuencia concatenada y $h$ la dimensión de sus representaciones ocultas. En consecuencia, el modelo no produce primero dos embeddings independientes, sino una representación contextualizada que depende simultáneamente de ambos registros.
+donde $L$ es la longitud total en tokens de la secuencia concatenada y $h$ es la dimensionalidad de los vectores de estado oculto producidos por la última capa del Transformer para cada token (por ejemplo, $h=768$ en arquitecturas tipo BERT-base). En consecuencia, el modelo no produce primero dos embeddings independientes, sino una representación contextualizada que depende simultáneamente de ambos registros.
 
 \paragraph{Interacciones cruzadas mediante autoatención.}
 En cada capa del Transformer, las consultas, claves y valores se calculan a partir de todos los tokens de la secuencia conjunta~\cite{vaswani2017,devlin2019}. Si se omiten los tokens especiales para simplificar la notación, la matriz de pesos de atención puede representarse por bloques como
@@ -356,12 +357,12 @@ Esta mayor expresividad impide precalcular y reutilizar una representación inde
 
 \section{Estrategias modernas de optimización: Aprendizaje contrastivo y aumento de datos}
 
-El entrenamiento de arquitecturas neuronales para el ligado de registros enfrenta un desafío estadístico fundamental: el desbalance extremo de clases. En el producto cartesiano de dos bases de datos, la inmensa mayoría de los pares corresponden a entidades distintas, mientras que las coincidencias reales son escasas. Sin un esquema adecuado de muestreo o ponderación, la contribución de los pares negativos puede dominar el objetivo de entrenamiento. Dos estrategias complementarias ante este problema y la variabilidad de los registros son el aprendizaje contrastivo, que permite aprovechar múltiples comparaciones negativas, y el aumento de datos, que expone al modelo a perturbaciones que preservan la identidad.
+El entrenamiento de arquitecturas neuronales para el ligado de registros enfrenta un desafío estadístico fundamental: el desbalance extremo de clases. En el producto cartesiano de dos bases de datos, la inmensa mayoría de los pares corresponden a entidades distintas, mientras que las coincidencias reales son escasas. Sin un esquema adecuado de muestreo o ponderación, la contribución de los pares negativos puede dominar el objetivo de entrenamiento. Dos estrategias complementarias ante este problema y la variabilidad de los registros son el aprendizaje contrastivo, que permite aprovechar múltiples comparaciones negativas, y el aumento de datos, que expone al modelo a variaciones sintéticas en la escritura de los registros sin alterar la entidad real a la que corresponden (es decir, conservando su etiqueta de vinculación).
 
 \subsection{Aprendizaje contrastivo y \textit{Multiple Negatives Ranking Loss}}
-El objetivo del aprendizaje contrastivo en la resolución de entidades es construir el espacio de representación de tal forma que los registros de una misma entidad tengan embeddings próximos, mientras que los de entidades diferentes queden separados.
+El objetivo del aprendizaje contrastivo en la resolución de entidades es construir el espacio de representación de tal forma que los registros de una misma entidad tengan embeddings próximos, mientras que los de entidades diferentes queden separados~\cite{hadsell2006}.
 
-Una formulación eficiente para este propósito es la función de pérdida \textit{Multiple Negatives Ranking Loss} (MNRL). La estrategia de reutilizar como negativos las respuestas pertenecientes a otros ejemplos del mismo lote fue introducida por Henderson et al.~\cite{henderson2017} para entrenar representaciones destinadas a la recuperación eficiente de respuestas. La minería de negativos consiste en seleccionar, para cada registro de consulta, ejemplos de entidades distintas que el modelo debe aprender a separar. Cuando se eligen registros especialmente similares a la consulta, pero con una identidad diferente, se denominan negativos difíciles. MNRL reduce la necesidad de seleccionar explícitamente un negativo para cada consulta al reutilizar los registros positivos asociados con las demás consultas del lote como negativos en lote (\textit{in-batch negatives}).
+Una formulación eficiente para este propósito es la función de pérdida \textit{Multiple Negatives Ranking Loss} (MNRL). La estrategia de reutilizar como negativos las respuestas pertenecientes a otros ejemplos del mismo lote fue introducida por Henderson et al.~\cite{henderson2017} para entrenar representaciones destinadas a la recuperación eficiente de respuestas. La minería de negativos (\textit{negative mining}) consiste en seleccionar, para cada registro de consulta, ejemplos de entidades distintas que el modelo debe aprender a separar. Cuando se eligen registros especialmente similares a la consulta, pero pertenecientes a una entidad diferente, se denominan negativos difíciles (\textit{hard negatives}). MNRL reduce la necesidad de seleccionar explícitamente un negativo para cada consulta al reutilizar los registros positivos asociados con las demás consultas del lote como negativos en lote (\textit{in-batch negatives}).
 
 Dado un lote de tamaño $M$ compuesto por pares positivos $\{(a_i,b_i)\}_{i=1}^{M}$, la función considera $b_i$ como el registro positivo de la consulta $a_i$ y los elementos $b_j$, con $j\neq i$, como registros negativos. Formalmente:
 
