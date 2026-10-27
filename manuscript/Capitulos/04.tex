@@ -15,15 +15,15 @@ El capítulo anterior evidenció tres limitaciones estructurales del enfoque det
 
 La más crítica para el diseño de un sistema de ligado automático es la tercera: una misma variable real (el diagnóstico del paciente, su ocupación, su nivel socioeconómico) se representa en cada sistema del INER con esquemas, vocabularios y formatos distintos. Comparar caracteres entre campos que no comparten ni nombre, ni tipo, ni codificación es un callejón sin salida metodológico. La alternativa metodológica que se propone en este capítulo consiste en trascender la representación tabular y operar sobre una \textbf{abstracción semántica} del paciente, donde la información del registro quede representada de manera uniforme y comparable entre bases de datos.
 
-Para ello, se define el concepto de \textbf{bloque semántico} como una agrupación lógica de atributos que comparten un eje de información común, independientemente de la nomenclatura u organización de la base de datos de origen. Cada bloque se materializa en una fuente particular mediante un \textit{soporte}, que es el subconjunto de columnas que lo implementan en esa base específica.
+Para ello, se define el concepto de \textbf{bloque semántico} como una agrupación de atributos o campos que comparten un tipo de información común, independientemente de la nomenclatura u organización de la base de datos de origen. Cada bloque se materializa en una fuente particular mediante un \textit{soporte}, que es el subconjunto de campos que lo implementan en esa base específica.
 
 La noción de bloque semántico puede entenderse por analogía con las modalidades de un modelo multimodal. Por ejemplo, en un sistema de clasificación musical, la calidad de la predicción mejora cuando el modelo dispone simultáneamente de la señal de audio, la letra de la canción y el video oficial. Cada una de estas fuentes ofrece una vista parcial de la misma realidad subyacente, y su combinación enriquece la representación que el modelo puede aprender. Sin embargo, no toda canción tiene video oficial; algunas tienen letra, otras no. Un modelo multimodal robusto debe operar con las modalidades disponibles en cada caso, sin depender de que todas estén siempre presentes.
 
-Los bloques semánticos cumplen el mismo rol en el dominio de resolución de entidades en el ámbito clínico. \texttt{[BLK\_ID]} es una modalidad que identifica al paciente, \texttt{[BLK\_CLIN]} es otra que caracteriza su perfil clínico, \texttt{[BLK\_GEO]} otra con información extra, y así sucesivamente. Cada base de datos del INER implementa un subconjunto distinto de estas modalidades: Comorbilidad carece de \texttt{[BLK\_GEO]} y \texttt{[BLK\_SOCIO]} por diseño, del mismo modo que una canción puede carecer de video oficial. Cuando el paciente es atendido en múltiples servicios, sus modalidades se distribuyen entre los sistemas, y es tarea del modelo de ligado reconstruir la unidad de la entidad a partir de las piezas disponibles. La serialización basada en bloques, que se detalla en la Sección~\ref{sec:early_fusion}, materializa esta filosofía: cada registro se representa únicamente con los bloques que posee, produciendo secuencias de longitud variable que reflejan fielmente la información presente sin imputación ni relleno.
+Los bloques semánticos cumplen el mismo rol en el dominio de resolución de entidades en el ámbito clínico. \texttt{[BLK\_ID]} es una modalidad que identifica al paciente, \texttt{[BLK\_CLIN]} es otra que caracteriza su perfil clínico, \texttt{[BLK\_GEO]} otra con información extra, y así sucesivamente. Cada base de datos del INER implementa un subconjunto distinto de estas modalidades: Comorbilidad carece de \texttt{[BLK\_GEO]} y \texttt{[BLK\_SOCIO]} por diseño, del mismo modo que una canción puede carecer de video oficial. Cuando el paciente es atendido en múltiples servicios, sus modalidades se distribuyen entre los sistemas, y es tarea del modelo de ligado reconstruir la unidad de la entidad a partir de las piezas disponibles. La serialización basada en bloques, que se detalla en la Sección~\ref{sec:early_fusion}, materializa esta filosofía: cada registro se representa únicamente con los bloques que posee, produciendo secuencias de longitud variable que reflejan fielmente la información presente sin imputación ni relleno, como se ilustra en la Figura~\ref{fig:bloques_modalidades}.
 
 \input{Figuras/bloques_modalidades}
 
-El análisis de los tres sistemas del INER, documentado en el Anexo de Bloques Semánticos, identificó cinco bloques que cubren la totalidad de la información de los pacientes. La Tabla~\ref{tab:columnas_por_bloque_comparativo} muestra el mapeo completo de columnas a bloques para cada fuente.
+El análisis exploratorio de los tres sistemas del INER descrito en el Capítulo~\ref{cap:datos} permitió identificar cinco bloques que cubren la totalidad de la información de los pacientes. La Tabla~\ref{tab:columnas_por_bloque_comparativo} muestra el mapeo completo de columnas a bloques para cada fuente.
 
 \begin{table}[H]
 \centering
@@ -112,13 +112,13 @@ Esta heterogeneidad de cobertura no es un obstáculo para el enfoque propuesto, 
 
 Los modelos de lenguaje pre-entrenados como BERT (\textit{Bidirectional Encoder Representations from Transformers}) ofrecen una vía para abordar la heterogeneidad estructural descrita en la sección anterior. Su representación textual permite procesar registros con atributos faltantes sin requerir imputación de datos; sin embargo, esto no garantiza una robustez intrínseca ante la ausencia de información, pues el impacto depende del patrón de faltantes y de la capacidad del modelo para discriminar con los atributos disponibles. Su aplicación directa al problema de ligado de registros enfrenta además una barrera computacional inmediata: la comparación exhaustiva.
 
-Dadas dos bases de datos $A$ y $B$ con $n$ y $m$ registros respectivamente, el enfoque ingenuo de evaluar todos los pares posibles tiene complejidad $\mathcal{O}(n \cdot m)$. En el caso concreto del INER, los volúmenes de las tres fuentes (4,278 registros en Comorbilidad, 4,632 en Económico y 14,796 en Trabajo Social) generan productos cartesianos del orden de decenas de millones de pares. Por ejemplo, alinear Comorbilidad contra Económico produce aproximadamente 19.8 millones de combinaciones, y Comorbilidad contra Trabajo Social alcanza 63.3 millones. Ejecutar un Transformer profundo sobre cada par es computacionalmente inviable, incluso con aceleración por GPU.
+Dadas dos bases de datos $A$ y $B$ con $n$ y $m$ registros respectivamente, el enfoque ingenuo de evaluar todos los pares posibles tiene complejidad $\mathcal{O}(n \cdot m)$. En el caso concreto del INER, los volúmenes de las tres fuentes (4,278 registros en Comorbilidad, 4,632 en Económico y 14,796 en Trabajo Social) generan productos cartesianos del orden de decenas de millones de pares. Por ejemplo, alinear Comorbilidad contra Económico produce aproximadamente 19.8 millones de combinaciones, y Comorbilidad contra Trabajo Social alcanza 63.3 millones (Figura~\ref{fig:cubo_producto_cartesiano}). Ejecutar un Transformer profundo sobre cada par es computacionalmente inviable, incluso con aceleración por GPU.
 
 \input{Figuras/cubo_producto_cartesiano}
 
 La solución propuesta sigue la arquitectura \textit{Retrieve \& Re-rank}, un embudo de dos fases que separa la eficiencia de la profundidad. En la primera fase, un modelo ligero (\textit{Bi-Encoder}) proyecta cada registro a un vector denso de baja dimensión y recupera los $K$ vecinos más cercanos mediante similitud coseno, reduciendo el espacio de búsqueda de $\mathcal{O}(n \cdot m)$ a $\mathcal{O}(n \cdot K)$ con $K \ll m$. En la segunda fase, un modelo profundo (\textit{Cross-Encoder}) examina con atención cruzada únicamente los $K$ pares candidatos por registro y produce una decisión final de ligado.
 
-Esta arquitectura no solo resuelve el problema de escalabilidad, sino que además introduce una división metodológica natural entre las dos fases. El Bi-Encoder optimiza recuperación (\textit{recall}), priorizando no descartar ningún par legítimo, mientras que el Cross-Encoder optimiza precisión (\textit{precision}), discriminando entre los falsos positivos y los verdaderos positivos que el primer filtro no pudo separar. El resultado es un sistema que combina lo mejor de ambos mundos: la eficiencia de una búsqueda de vecinos y la sensibilidad de un clasificador profundo.
+Esta arquitectura no solo resuelve el problema de escalabilidad, sino que además introduce una división metodológica natural entre las dos fases. El Bi-Encoder optimiza recuperación (\textit{recall}), priorizando no descartar ningún par legítimo, mientras que el Cross-Encoder optimiza precisión (\textit{precision}), discriminando entre los falsos positivos y los verdaderos positivos que el primer filtro no pudo separar. El resultado, esquematizado en la Figura~\ref{fig:embudo_arquitectura}, es un sistema que combina lo mejor de ambos mundos: la eficiencia de una búsqueda de vecinos y la sensibilidad de un clasificador profundo.
 
 \input{Figuras/embudo_arquitectura}
 
@@ -136,7 +136,7 @@ En la sección anterior se definió el concepto de \textbf{bloque semántico} co
 
 La ventaja de la fusión temprana, además de la simplicidad en la implementación, es que el mecanismo de atención del Transformer puede modelar las interacciones entre cualquier par de atributos desde la primera capa de manera autónoma, sin requerir ingeniería de características, supuestos sobre importancia relativa de columnas ni depender de valores no nulos en campos específicos.
 
-El formato de serialización sigue una estructura de clave-valor etiquetada mediante tokens especiales adoptada de la arquitectura DITTO~\cite{li2020}. En dicha arquitectura, cada atributo se representa con los tokens \texttt{[COL]} y \texttt{[VAL]} para indicar el inicio del nombre del atributo y de su valor respectivamente, enseñando al modelo la estructura relacional clave-valor. Sobre esta base, este trabajo introduce una extensión jerárquica: los tokens \texttt{[BLK\_ID]}, \texttt{[BLK\_CLIN]}, etc., delimitan los bloques semánticos definidos en la Sección~\ref{sec:bloques_semanticos}, permitiendo que el modelo aprenda la pertenencia de cada atributo a su bloque y pondere la importancia relativa de cada modalidad. Por ejemplo, un registro mínimo con identidad y datos clínicos se serializaría como:
+El formato de serialización sigue una estructura de clave-valor etiquetada mediante tokens especiales adoptada de la arquitectura DITTO~\cite{li2020}. En dicha arquitectura, cada atributo se representa con los tokens \texttt{[COL]} y \texttt{[VAL]} para indicar el inicio del nombre del atributo y de su valor respectivamente, enseñando al modelo la estructura relacional clave-valor. Sobre esta base, este trabajo introduce una extensión jerárquica: los tokens \texttt{[BLK\_ID]}, \texttt{[BLK\_CLIN]}, etc., delimitan los bloques semánticos definidos en la Sección~\ref{sec:bloques_semanticos}, permitiendo que el modelo aprenda la pertenencia de cada atributo a su bloque y pondere la importancia relativa de cada modalidad (Figura~\ref{fig:serializacion_early_fusion}). Por ejemplo, un registro mínimo con identidad y datos clínicos se serializaría como:
 
 \begin{verbatim}
 [BLK_ID] [COL] nombre [VAL] JUAN PEREZ [COL] edad [VAL] 45 [/BLK_ID]
@@ -181,7 +181,7 @@ Dado que los modelos Transformer imponen un límite estricto de tokens de entrad
 \end{tabular}
 \end{table}
 
-Ningún registro individual supera el límite de 384 tokens utilizado por el Bi-Encoder, por lo que esta etapa no aplica truncamiento. Como era esperable, los tokens especiales estructurales incrementan la longitud de las secuencias: al comparar variantes con el mismo tratamiento de nulos, las variantes con tokens son más largas que sus equivalentes sin tokens. Por otra parte, omitir los valores nulos reduce la longitud promedio respecto a conservarlos, tanto con tokens como sin ellos.
+Ningún registro individual supera el límite de 512 tokens configurado en el Bi-Encoder (el máximo observado es de 368 tokens en \texttt{tok\_keepnull}), por lo que esta etapa no aplica truncamiento. Como era esperable, los tokens especiales estructurales incrementan la longitud de las secuencias: al comparar variantes con el mismo tratamiento de nulos, las variantes con tokens son más largas que sus equivalentes sin tokens. Por otra parte, omitir los valores nulos reduce la longitud promedio respecto a conservarlos, tanto con tokens como sin ellos.
 
 % ==============================================================================
 % 4.4 FASE 1: SBERT
@@ -208,7 +208,7 @@ La Tabla~\ref{tab:biencoder_config} resume la configuración utilizada para el B
 \emph{Backbone} & \textbf{BETO} (BERT-base español, \texttt{dccuchile/bert-base-spanish-wwm-cased}) \\
 Dimensión de salida & 768 \\
 Estrategia de \textit{pooling} & Promedio de las representaciones de la última capa oculta \\
-Longitud máxima de secuencia & 384 \textit{tokens} \\
+Longitud máxima de secuencia & 512 \textit{tokens} \\
 Vocabulario extendido & 7 tokens especiales: \texttt{[BLK\_ID]}, \texttt{[BLK\_CLIN]}, \texttt{[BLK\_GEO]}, \texttt{[BLK\_SOCIO]}, \texttt{[BLK\_ADMIN]}, \texttt{[COL]}, \texttt{[VAL]} \\
 Inicialización tokens & \textit{Warm init}: centroide semántico de palabras ancla en español (ej. \texttt{[BLK\_ID]} $\leftarrow$ \texttt{\{identidad, identificación, paciente, nombre, persona\}}) \\
 \midrule
@@ -281,7 +281,7 @@ Para una dirección A$\rightarrow$B, sean $Q \in \mathbb{R}^{n_A \times 768}$ y 
     S = QC^{\top} \in \mathbb{R}^{n_A \times n_B}.
     \label{eq:similarity_matrix}
 \end{equation}
-Como los embeddings tienen norma L2 igual a uno, cada entrada $S_{ij}=\mathbf{q}_i^{\top}\mathbf{c}_j$ equivale a la similitud coseno entre la consulta $i$ y el candidato $j$. Cada fila de $S$ contiene las similitudes de una consulta contra todos los candidatos de la fuente opuesta; sobre esa fila se identifican los positivos mediante \texttt{entity\_id}, se obtiene el orden de recuperación y se calculan las distribuciones empleadas en $\Delta_{\mathrm{sep}}$.
+Como los embeddings tienen norma L2 igual a uno, cada entrada $S_{ij}=\mathbf{q}_i^{\top}\mathbf{c}_j$ equivale a la similitud coseno entre la consulta $i$ y el candidato $j$. Cada fila de la matriz $S$ (ecuación~\ref{eq:similarity_matrix}) contiene las similitudes de una consulta contra todos los candidatos de la fuente opuesta; sobre esa fila se identifican los positivos mediante \texttt{entity\_id}, se obtiene el orden de recuperación y se calculan las distribuciones empleadas en $\Delta_{\mathrm{sep}}$.
 
 Sea $\mathcal{Q}$ el conjunto de consultas y, para cada consulta $q \in \mathcal{Q}$, sea $\mathcal{C}_q$ el conjunto de registros candidatos de la fuente opuesta. Se denota por $P_q \subseteq \mathcal{C}_q$ el subconjunto de candidatos que pertenecen a la misma entidad que $q$, de acuerdo con la etiqueta de referencia. Al ordenar $\mathcal{C}_q$ en forma descendente por similitud coseno, $R_K(q)$ representa los primeros $K$ candidatos recuperados. Todos los valores se promedian sobre las consultas que tienen al menos un positivo en la fuente opuesta.
 
@@ -416,7 +416,7 @@ Sea $\mathcal{D}_{\mathrm{train}}=\{(x_i,y_i)\}_{i=1}^{N}$ el conjunto de pares 
 \end{equation}
 donde $z_i=z_\theta(x_i)$ y $w_{+}=8$ aumenta la contribución de los pares positivos. Esta ponderación aproxima la razón observada de 8.12 negativos difíciles por positivo y evita que la optimización privilegie una solución que clasifique casi todos los pares como negativos. La implementación usa \texttt{BCEWithLogitsLoss}, que evalúa esta función directamente sobre $z_i$ con una forma numéricamente estable.
 
-Una vez ajustados los parámetros, la inferencia produce una puntuación cruda $s_{\mathrm{raw},i}$. Para convertirla en una decisión operativa se fija un umbral $\tau$ y se define $\hat{y}_i=\mathbb{I}[s_{\mathrm{raw},i}\geq\tau]$. Por tanto, el clasificador tiene tres objetos distintos: el logit $z_i$, la puntuación continua $s_{\mathrm{raw},i}$ y la decisión binaria $\hat{y}_i$. La selección de $\tau$ se realiza exclusivamente sobre validación, después del entrenamiento, como se formaliza en la Sección~\ref{sec:entrenamiento}.
+Una vez ajustados los parámetros mediante la ecuación~\ref{eq:weighted_bce}, la inferencia produce la puntuación cruda $s_{\mathrm{raw},i}$ definida en la ecuación~\ref{eq:cross_encoder_head}. Para convertirla en una decisión operativa se fija un umbral $\tau$ y se define $\hat{y}_i=\mathbb{I}[s_{\mathrm{raw},i}\geq\tau]$. Por tanto, el clasificador tiene tres objetos distintos: el logit $z_i$, la puntuación continua $s_{\mathrm{raw},i}$ y la decisión binaria $\hat{y}_i$. La selección de $\tau$ se realiza exclusivamente sobre validación, después del entrenamiento, como se formaliza en la Sección~\ref{sec:entrenamiento}.
 
 \subsection{Ventaja sobre el Bi-Encoder}
 
@@ -464,7 +464,7 @@ Como referencia previa al ajuste fino, la evaluación siguió el protocolo sigui
     \item \textbf{Modelos:} BETO, RoBERTa-biomedical y \texttt{paraphrase-multilingual}, sin actualizar sus pesos ni aplicar MNRL.
     \item \textbf{Datos de evaluación:} el subconjunto de prueba de \texttt{notok\_skipnull}, representado como \texttt{columna: valor}, sin tokens especiales y omitiendo las columnas con valores nulos.
     \item \textbf{Recuperación:} para cada modelo se codificaron, con longitud máxima de 512 tokens, los registros de entidades presentes en al menos dos fuentes y se normalizaron los \textit{embeddings} resultantes. La similitud coseno se evaluó en las seis direcciones posibles entre las tres fuentes, usando una fuente como consultas y otra como conjunto de candidatos.
-    \item \textbf{Métricas:} Recall@K, Precision@K, MRR y $\Delta_{\mathrm{sep}}$ para $K \in \{1, 5, 10, 20, 50\}$, conforme a las definiciones anteriores.
+    \item \textbf{Métricas:} Recall@K (ecuación~\ref{eq:recall_at_k}), Precision@K (ecuación~\ref{eq:precision_at_k}), MRR (ecuación~\ref{eq:mrr}) y $\Delta_{\mathrm{sep}}$ (ecuación~\ref{eq:delta_sep}) para $K \in \{1, 5, 10, 20, 50\}$.
 \end{itemize}
 
 \paragraph{Entrenamiento del Bi-Encoder (Fase 1).}
@@ -503,7 +503,7 @@ Una vez terminado el entrenamiento, se evalúa el checkpoint seleccionado sobre 
     \mathcal{T}=\left\{0, \frac{1}{50}, \frac{2}{50}, \ldots, 1\right\}.
     \label{eq:threshold_grid}
 \end{equation}
-Para cada $\tau\in\mathcal{T}$, se asigna $\hat{y}_i(\tau)=\mathbb{I}[s_{\mathrm{raw},i}\geq\tau]$ y se calcula F1. El umbral operativo se define como
+Para cada candidato $\tau\in\mathcal{T}$ de la malla (ecuación~\ref{eq:threshold_grid}), se asigna $\hat{y}_i(\tau)=\mathbb{I}[s_{\mathrm{raw},i}\geq\tau]$ y se calcula F1. El umbral operativo se define como
 \begin{equation}
     \tau^*=\underset{\tau\in\mathcal{T}}{\operatorname{arg\,max}}\; \operatorname{F1}_{\mathrm{val}}(\tau).
     \label{eq:threshold_selection}
@@ -527,9 +527,9 @@ La evaluación del sistema se divide en dos niveles, uno por cada fase del embud
 La fase de recuperación se evalúa con métricas de ranking que miden si los pares positivos aparecen entre los primeros $K$ vecinos recuperados. Las métricas principales son:
 
 \begin{itemize}
-    \item \textbf{Recall@K:} proporción de pares positivos para los cuales el registro correspondiente aparece entre los $K$ vecinos más cercanos del otro.
-    \item \textbf{MRR (\textit{Mean Reciprocal Rank}):} promedio del recíproco del rango al que aparece el primer positivo en cada lista de $K$ vecinos.
-    \item \textbf{$\Delta_{\text{sep}}$:} diferencia entre las medias de similitud de pares positivos y negativos, normalizada por su desviación estándar combinada. Esta métrica es útil cuando Recall@K y MRR se saturan porque el conjunto de prueba contiene pocos pares difíciles; $\Delta_{\text{sep}}$ captura la calidad del espacio de \textit{embeddings} independientemente de la lista de ranking.
+    \item \textbf{Recall@K (ecuación~\ref{eq:recall_at_k}):} proporción de pares positivos para los cuales el registro correspondiente aparece entre los $K$ vecinos más cercanos del otro.
+    \item \textbf{MRR (\textit{Mean Reciprocal Rank}, ecuación~\ref{eq:mrr}):} promedio del recíproco del rango al que aparece el primer positivo en cada lista de $K$ vecinos.
+    \item \textbf{$\Delta_{\text{sep}}$ (ecuación~\ref{eq:delta_sep}):} diferencia entre las medias de similitud de pares positivos y negativos, normalizada por su desviación estándar combinada. Esta métrica es útil cuando Recall@K y MRR se saturan porque el conjunto de prueba contiene pocos pares difíciles; $\Delta_{\text{sep}}$ captura la calidad del espacio de \textit{embeddings} independientemente de la lista de ranking.
 \end{itemize}
 
 \paragraph{Métricas del Cross-Encoder.}
@@ -572,6 +572,6 @@ La tercera capa responde una pregunta operativa: aun si un par no es globalmente
 \end{equation}
 Un margen pequeño identifica pares cercanos a la frontera operativa y, por ello, candidatos a revisión.
 
-El procedimiento se ejecutó después de fijar el umbral: ajustó $T$ en validación, comparó el ECE y las curvas de confiabilidad antes y después de la transformación, y exportó para cada par de prueba su puntuación original, probabilidad calibrada, entropía cruda, entropía calibrada y margen. La separación perfecta observada en validación hizo que el ajuste de temperatura fuera degenerado y que $H(p_i^{(T)})$ aportara poca discriminación. Por ello, la interpretación de ambigüedad se basa en $H(s_{\mathrm{raw},i})$, mientras que $H(p_i^{(T)})$ se conserva como diagnóstico del efecto de la calibración. Estas señales ordenan casos para revisión, pero no convierten una predicción en evidencia definitiva de que una etiqueta sea correcta o incorrecta.
+El procedimiento se ejecutó después de fijar el umbral: ajustó $T^*$ en validación (ecuación~\ref{eq:temperature_scaling}), comparó el ECE (ecuación~\ref{eq:ece}) y las curvas de confiabilidad antes y después de la transformación, y exportó para cada par de prueba su puntuación original, probabilidad calibrada, entropía cruda y calibrada (ecuación~\ref{eq:binary_entropy}), así como su margen de decisión (ecuación~\ref{eq:decision_margin}). La separación perfecta observada en validación hizo que el ajuste de temperatura fuera degenerado y que $H(p_i^{(T)})$ aportara poca discriminación. Por ello, la interpretación de ambigüedad se basa en $H(s_{\mathrm{raw},i})$, mientras que $H(p_i^{(T)})$ se conserva como diagnóstico del efecto de la calibración. Estas señales ordenan casos para revisión, pero no convierten una predicción en evidencia definitiva de que una etiqueta sea correcta o incorrecta.
 
 Finalmente, la incertidumbre se interpreta respecto a un \textit{silver standard}: una discrepancia entre el modelo y la etiqueta puede señalar un caso que requiere revisión humana, pero no demuestra por sí misma que la etiqueta sea errónea. Una auditoría exhaustiva de los pares de entrenamiento mediante predicciones fuera de muestra, o la búsqueda de coincidencias no recuperadas por el Bi-Encoder, requeriría experimentos adicionales y se deja como trabajo futuro.
