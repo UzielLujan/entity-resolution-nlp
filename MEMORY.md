@@ -44,8 +44,8 @@
 - Capítulo 5 (Resultados y Discusión): redactado; incluye resultados del experimento de serialización, recuperación, Cross-Encoder, UMAP y calibración.
 - Capítulo 6 (Conclusiones): redactado con contribuciones, límites, trabajo futuro y cierre; requiere revisión académica final.
 - La bibliografía oficial se carga exclusivamente desde `manuscript/Bibliografia/referencias.bib`; el archivo histórico `Capitulos/referencias.tex` era obsoleto y se retiró.
-- Pendiente relevante: revisar referencias bibliográficas cruzadas.
 - La prioridad es cerrar una primera versión basada en el pipeline neuronal ya ejecutado. El baseline clásico end-to-end es un desarrollo tentativo y preventivo: no se incorporará todavía como resultado formal y permanecerá mencionado como trabajo futuro.
+- Verificado el 2026-11-07: el Capítulo 4 usa `max_seq_length=512` en todas sus menciones (sin remanentes de 384); el manuscrito recompila sin referencias ni citas indefinidas (pdflatex + biber, 0 errores); la portada usa `\today`, por lo que la fecha se actualiza automáticamente.
 
 ## Pendientes y decisiones
 
@@ -57,11 +57,9 @@
 
 ### Manuscrito
 
-1. **Metodología del Bi-Encoder** — Corregir en el Capítulo 4 la longitud máxima del checkpoint canónico: los cuatro modelos oficiales fueron entrenados con `max_seq_length=512`, no 384.
-2. **Referencias** — Revisar las referencias bibliográficas y las referencias cruzadas del manuscrito.
-3. **Revisión académica** — Realizar la revisión académica final de los seis capítulos.
-4. **Front matter** — Completar los agradecimientos y actualizar la fecha de portada cuando corresponda.
-5. **Alcance acordado** — Mantener la ablación, K-fold, ANN/FAISS, el baseline clásico formal y el reentrenamiento bidireccional del Cross-Encoder como trabajo futuro; no bloquean la primera versión neuronal del manuscrito.
+1. **Revisión académica** — Realizar la revisión académica final de los seis capítulos.
+2. **Front matter** — Completar los agradecimientos; la fecha de portada ya usa `\today` y no requiere intervención manual.
+3. **Alcance acordado** — Mantener la ablación, K-fold, ANN/FAISS, el baseline clásico formal y el reentrenamiento bidireccional del Cross-Encoder como trabajo futuro; no bloquean la primera versión neuronal del manuscrito.
 
 ### Código y documentación
 
