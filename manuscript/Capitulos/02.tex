@@ -189,10 +189,28 @@ El Transformer emplea además atención multicabeza (\textit{Multi-Head Attentio
 
 donde cada $\text{head}_i = \text{Attention}(Q W_i^Q, K W_i^K, V W_i^V)$ aplica la ecuación~\ref{eq:scaled_dot_product_attention}. En registros tabulares serializados, la combinación multicabeza de la ecuación~\ref{eq:multihead} permite que los tokens asociados con distintos atributos y valores intercambien información dentro de una representación contextual conjunta~\cite{li2020}.
 
+La Figura~\ref{fig:transformer_attention} ilustra ambos mecanismos: la atención escalada y su composición en varias cabezas paralelas.
+\input{Figuras/transformer_attention}
+
+La atención multicabeza se organiza en bloques de encoder. Cada bloque aplica la atención y después una red \textit{feed-forward}, y rodea ambas subcapas con una conexión residual y una normalización de capa:
+\[
+\mathbf{H}' = \operatorname{LayerNorm}\!\left(\mathbf{H} + \operatorname{MultiHead}(\mathbf{H})\right),
+\qquad
+\mathbf{H}'' = \operatorname{LayerNorm}\!\left(\mathbf{H}' + \operatorname{FFN}(\mathbf{H}')\right).
+\]
+Como la atención no incorpora por sí misma el orden de la secuencia, la codificación posicional se suma a las representaciones de entrada. La Figura~\ref{fig:transformer_encoder_block} resume este bloque.
+\input{Figuras/transformer_encoder_block}
+
 \subsection{Modelos de lenguaje pre-entrenados (PLMs)}
 La aplicación de Transformers a tareas de procesamiento de lenguaje natural se fortaleció mediante el preentrenamiento sobre corpus textuales de gran escala. Modelos como BERT (\textit{Bidirectional Encoder Representations from Transformers})~\cite{devlin2019} aprenden representaciones bidireccionales resolviendo una tarea de aprendizaje auto-supervisado y posteriormente pueden adaptarse a tareas específicas mediante ajuste fino (\textit{fine-tuning}). RoBERTa~\cite{liu2019} mostró que modificaciones en los datos, los hiperparámetros y el procedimiento de preentrenamiento podían mejorar el desempeño de este tipo de modelos.
 
+La Figura~\ref{fig:bert_pretraining} ilustra los dos objetivos de pre-entrenamiento de BERT: el enmascaramiento de tokens y la predicción de la siguiente oración.
+\input{Figuras/bert_pretraining}
+
 En esta tesis, los modelos preentrenados proporcionan el punto de partida para procesar las representaciones textuales de los registros del INER. El ajuste posterior adapta estos modelos a las dos tareas del sistema: construir un espacio métrico para la recuperación de candidatos y clasificar los pares de registros formados a partir de ellos.
+
+La Figura~\ref{fig:pretraining_finetuning} resume este paradigma de pre-entrenamiento y ajuste fino.
+\input{Figuras/pretraining_finetuning}
 
 
 % 2.4 ESTADO DEL ARTE EN LIGADO DE REGISTROS NEURONAL (SBERT Y DITTO)

@@ -1,0 +1,45 @@
+% Diagrama conceptual de un bloque del encoder Transformer.
+\providecolor{petroleo}{HTML}{3B5366}
+\providecolor{vinoCIMAT}{HTML}{7A2237}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  >={Stealth[length=2.2mm]},
+  flow/.style={->, draw=gray!65, line width=0.8pt},
+  resid/.style={->, draw=vinoCIMAT!75, dashed, line width=0.8pt, rounded corners=5pt},
+  io/.style={draw=gray!50, fill=gray!8, rounded corners=3pt, align=center,
+             font=\footnotesize, inner sep=4pt, minimum width=4.8cm, minimum height=0.7cm},
+  attn/.style={draw=petroleo, fill=petroleo!10, rounded corners=3pt, align=center,
+               font=\footnotesize, inner sep=4pt, minimum width=4.8cm, minimum height=0.7cm},
+  ffn/.style={draw=petroleo, fill=petroleo!10, rounded corners=3pt, align=center,
+              font=\footnotesize, inner sep=4pt, minimum width=4.8cm, minimum height=0.7cm},
+  norm/.style={draw=vinoCIMAT, fill=vinoCIMAT!10, rounded corners=3pt, align=center,
+               font=\footnotesize, inner sep=4pt, minimum width=4.8cm, minimum height=0.7cm}
+]
+  \node[io]   (in)  at (0, 0)    {Entrada + codificación posicional};
+  \node[attn] (mha) at (0, -1.6) {Multi-Head Attention};
+  \node[norm] (an1) at (0, -3.2) {Add \& Norm};
+  \node[ffn]  (ffn) at (0, -4.8) {Feed-Forward};
+  \node[norm] (an2) at (0, -6.4) {Add \& Norm};
+  \node[io]   (out) at (0, -8.0) {Representaciones de salida};
+
+  \draw[flow] (in)  -- (mha);
+  \draw[flow] (mha) -- (an1);
+  \draw[flow] (an1) -- (ffn);
+  \draw[flow] (ffn) -- (an2);
+  \draw[flow] (an2) -- (out);
+
+  % Conexiones residuales: rodean cada subcapa por la izquierda.
+  \draw[resid] (0, -0.8) -- (-3.4, -0.8) -- (-3.4, -3.2) -- (an1.west);
+  \draw[resid] (0, -4.0) -- (-3.4, -4.0) -- (-3.4, -6.4) -- (an2.west);
+
+  \node[font=\scriptsize, text=vinoCIMAT!85, rotate=90, anchor=south]
+    at (-3.7, -2.0) {conexión residual};
+  \node[font=\scriptsize, text=vinoCIMAT!85, rotate=90, anchor=south]
+    at (-3.7, -5.2) {conexión residual};
+
+\end{tikzpicture}
+\caption{Bloque del encoder Transformer. La atención multicabeza y la red \textit{feed-forward} se aplican en secuencia; cada subcapa se rodea con una conexión residual y una normalización de capa. La codificación posicional se suma a las representaciones de entrada para conservar información sobre el orden de la secuencia.}
+\label{fig:transformer_encoder_block}
+\end{figure}

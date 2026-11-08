@@ -1,0 +1,53 @@
+% Diagrama conceptual del paradigma pre-entrenamiento -> ajuste fino.
+\providecolor{petroleo}{HTML}{3B5366}
+\providecolor{vinoCIMAT}{HTML}{7A2237}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  >={Stealth[length=2.2mm]},
+  flow/.style={->, draw=gray!65, line width=0.8pt},
+  transfer/.style={->, draw=vinoCIMAT!75, dashed, line width=0.8pt},
+  box/.style={rounded corners=3pt, align=center, font=\footnotesize,
+              inner sep=4pt, minimum height=0.75cm},
+  io/.style={box, draw=gray!50, fill=gray!8},
+  pre/.style={box, draw=petroleo, fill=petroleo!10},
+  weights/.style={box, draw=petroleo, fill=petroleo!16},
+  head/.style={box, draw=vinoCIMAT, fill=vinoCIMAT!10},
+  result/.style={box, draw=vinoCIMAT, fill=vinoCIMAT!16}
+]
+
+  % ---------------- Etapa 1: pre-entrenamiento ----------------
+  \node[io, text width=2.7cm]      (corpus)   at (-5.75, 3.2) {Corpus no\\etiquetado};
+  \node[pre, text width=3.3cm]     (pretrain) at (-1.92, 3.2) {Pre-entrenamiento\\auto-supervisado};
+  \node[weights, text width=2.7cm] (weights)  at ( 1.76, 3.2) {Pesos\\pre-entrenados};
+
+  \draw[flow] (corpus) -- (pretrain);
+  \draw[flow] (pretrain) -- (weights);
+
+  % ---------------- Etapa 2: ajuste fino ----------------
+  \node[io, text width=2.95cm]    (data)    at (-5.75, 0.8) {Datos etiquetados\\de la tarea};
+  \node[pre, text width=3.3cm]    (encoder) at (-1.92, 0.8) {Encoder inicializado\\con pesos pre-entrenados};
+  \node[head, text width=2.5cm]   (head)    at ( 1.66, 0.8) {Cabeza de tarea};
+  \node[result, text width=2.5cm] (model)   at ( 4.84, 0.8) {Modelo ajustado};
+
+  \draw[flow] (data) -- (encoder);
+  \draw[flow] (encoder) -- (head);
+  \draw[flow] (head) -- (model);
+
+  % Transferencia de pesos desde el pre-entrenamiento al encoder.
+  \draw[transfer] (weights.south) -- (1.76, 1.9) -- (-1.92, 1.9) -- (encoder.north);
+  \node[font=\scriptsize, text=vinoCIMAT!85, anchor=south]
+    at (0.0, 1.95) {transferencia de pesos};
+
+  % ---------------- Aplicaciones del ajuste ----------------
+  \node[result, text width=2.2cm] (bi)    at (3.49, -0.9) {Bi-Encoder\\(recuperación)};
+  \node[result, text width=2.2cm] (cross) at (6.19, -0.9) {Cross-Encoder\\(clasificación)};
+
+  \draw[flow] (model.south) -- (bi.north);
+  \draw[flow] (model.south) -- (cross.north);
+
+\end{tikzpicture}
+\caption{Del pre-entrenamiento al ajuste fino. El modelo se pre-entrena sobre un corpus no etiquetado con objetivos auto-supervisados; los pesos resultantes inicializan un encoder que se adapta a datos etiquetados mediante una cabeza de tarea. En esta tesis, el ajuste produce el Bi-Encoder para la recuperación de candidatos y el Cross-Encoder para la clasificación de pares.}
+\label{fig:pretraining_finetuning}
+\end{figure}

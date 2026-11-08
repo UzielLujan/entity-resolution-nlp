@@ -1,0 +1,71 @@
+% Diagrama conceptual del pre-entrenamiento auto-supervisado de BERT (MLM y NSP).
+\providecolor{petroleo}{HTML}{3B5366}
+\providecolor{vinoCIMAT}{HTML}{7A2237}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  >={Stealth[length=2.2mm]},
+  flow/.style={->, draw=gray!65, line width=0.8pt},
+  bicontext/.style={->, draw=vinoCIMAT!70, dashed, line width=0.7pt},
+  tok/.style={draw=petroleo!70, fill=petroleo!8, rounded corners=2pt,
+              font=\scriptsize\ttfamily, inner sep=2.5pt, minimum height=0.5cm},
+  mask/.style={draw=vinoCIMAT, fill=vinoCIMAT!18, rounded corners=2pt,
+               font=\scriptsize\ttfamily, inner sep=2.5pt, minimum height=0.5cm},
+  seg/.style={draw=gray!55, fill=gray!8, rounded corners=2pt, align=center,
+              font=\scriptsize, inner sep=3pt, minimum height=0.5cm},
+  trf/.style={draw=petroleo, fill=petroleo!12, rounded corners=3pt, align=center,
+              font=\footnotesize, minimum height=0.7cm},
+  result/.style={draw=vinoCIMAT, fill=vinoCIMAT!10, rounded corners=3pt, align=center,
+                 font=\footnotesize, inner sep=4pt},
+  io/.style={draw=gray!50, fill=gray!8, rounded corners=3pt, align=center,
+             font=\footnotesize, inner sep=4pt},
+  panel/.style={font=\bfseries\footnotesize, text=petroleo}
+]
+
+  % ---------------- (a) Enmascaramiento de tokens (MLM) ----------------
+  \node[panel, anchor=west] at (-3.9, 3.5) {(a) Enmascaramiento de tokens (MLM)};
+
+  \node[tok]  (t0) at (-3.4, 2.3) {[CLS]};
+  \node[tok]  (t1) at (-2.2, 2.3) {el};
+  \node[tok]  (t2) at (-1.0, 2.3) {paciente};
+  \node[mask] (tm) at ( 0.4, 2.3) {[MASK]};
+  \node[tok]  (t3) at ( 1.8, 2.3) {fiebre};
+  \node[tok]  (t4) at ( 3.0, 2.3) {[SEP]};
+
+  \draw[bicontext] (t1.north) to[out=60, in=120] (tm.north);
+  \draw[bicontext] (t3.north) to[out=120, in=60] (tm.north);
+  \node[font=\scriptsize, text=vinoCIMAT!85] at (0.4, 3.15) {contexto bidireccional};
+
+  \draw[gray!50, line width=0.6pt] (-3.4, 1.98) -- (3.0, 1.98);
+  \node[trf, minimum width=6.8cm] (trfA) at (0, 1.1) {Transformer};
+  \draw[flow] (0.4, 1.98) -- (trfA.north);
+
+  \node[result] (pred) at (0.4, -0.2) {predicción: \textit{presentó}};
+  \draw[flow] (0.4, 0.75) -- (pred.north);
+
+  % ---------------- (b) Predicción de la siguiente oración (NSP) ----------------
+  \node[panel, anchor=west] at (-3.9, -0.9) {(b) Predicción de la siguiente oración (NSP)};
+
+  \node[tok] (s0) at (-3.4, -1.9) {[CLS]};
+  \node[seg, minimum width=1.7cm] (sA) at (-1.8, -1.9) {Segmento A};
+  \node[tok] (s1) at (-0.2, -1.9) {[SEP]};
+  \node[seg, minimum width=1.7cm] (sB) at (1.6, -1.9) {Segmento B};
+  \node[tok] (s2) at (3.3, -1.9) {[SEP]};
+
+  \draw[gray!50, line width=0.6pt] (-3.4, -2.22) -- (3.3, -2.22);
+  \node[trf, minimum width=7.0cm] (trfB) at (0, -3.2) {Transformer};
+  \draw[flow] (0, -2.22) -- (trfB.north);
+
+  \node[result] (cls) at (0, -4.3) {clasificador sobre $\mathbf{h}_{[\texttt{CLS}]}$};
+  \draw[flow] (trfB.south) -- (cls.north);
+
+  \node[result] (yes) at (-1.6, -5.4) {\textit{IsNext}};
+  \node[io]     (no)  at ( 1.6, -5.4) {\textit{NotNext}};
+  \draw[flow] (cls.south) -- (yes.north);
+  \draw[flow] (cls.south) -- (no.north);
+
+\end{tikzpicture}
+\caption{Pre-entrenamiento auto-supervisado de BERT. (a) Enmascaramiento de tokens (MLM): el modelo predice los tokens ocultos utilizando el contexto disponible a ambos lados de la posición enmascarada. (b) Predicción de la siguiente oración (NSP): a partir de la representación del token \texttt{[CLS]}, el clasificador decide si el segundo segmento es la continuación real del primero.}
+\label{fig:bert_pretraining}
+\end{figure}

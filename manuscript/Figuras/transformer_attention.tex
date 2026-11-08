@@ -1,0 +1,83 @@
+% Diagrama conceptual del mecanismo de atención en el Transformer.
+\providecolor{petroleo}{HTML}{3B5366}
+\providecolor{vinoCIMAT}{HTML}{7A2237}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  >={Stealth[length=2.2mm]},
+  flow/.style={->, draw=gray!65, line width=0.8pt},
+  io/.style={draw=gray!50, fill=gray!8, rounded corners=3pt, align=center,
+             font=\footnotesize, inner sep=4pt, minimum height=0.65cm},
+  proj/.style={draw=petroleo, fill=petroleo!10, rounded corners=3pt, align=center,
+               font=\footnotesize, inner sep=4pt, minimum height=0.65cm},
+  op/.style={draw=gray!55, fill=white, rounded corners=3pt, align=center,
+             font=\footnotesize, inner sep=4pt, minimum height=0.65cm},
+  weight/.style={draw=vinoCIMAT, fill=vinoCIMAT!10, rounded corners=3pt, align=center,
+                 font=\footnotesize, inner sep=4pt, minimum height=0.65cm},
+  result/.style={draw=petroleo, fill=petroleo!16, rounded corners=3pt, align=center,
+              font=\footnotesize, inner sep=4pt, minimum height=0.65cm},
+  panel/.style={font=\bfseries\footnotesize, text=petroleo}
+]
+
+  % ---------------- (a) Atención de producto punto escalado ----------------
+  \node[panel, anchor=west] at (-2.2, 3.4) {(a) Atención de producto punto escalado};
+
+  \node[io]   (X) at (-2.0, 1.2) {$\mathbf{X}$};
+  \node[proj] (Q) at (0, 2.1) {$\mathbf{Q}$};
+  \node[proj] (K) at (0, 1.2) {$\mathbf{K}$};
+  \node[proj] (V) at (0, 0.3) {$\mathbf{V}$};
+
+  \node[op]     (QK)    at (2.4, 1.65) {$\mathbf{Q}\mathbf{K}^{\top}$};
+  \node[op]     (scale) at (4.2, 1.65) {$\div\sqrt{d_k}$};
+  \node[weight] (soft)  at (6.0, 1.65) {$\operatorname{softmax}$};
+  \node[weight] (A)     at (7.8, 1.65) {$\mathbf{A}$};
+
+  \node[op]  (AV)  at (7.8, 0.3) {$\mathbf{A}\mathbf{V}$};
+  \node[result] (ctx) at (9.9, 0.3) {Salida contextual};
+
+  \draw[flow] (X.east) -- (Q.west);
+  \draw[flow] (X.east) -- (K.west);
+  \draw[flow] (X.east) -- (V.west);
+  \draw[flow] (Q.east) -- (QK.west);
+  \draw[flow] (K.east) -- (QK.west);
+  \draw[flow] (QK) -- (scale);
+  \draw[flow] (scale) -- (soft);
+  \draw[flow] (soft) -- (A);
+  \draw[flow] (A.south) -- (AV.north);
+  \draw[flow] (V.east) -- (AV.west);
+  \draw[flow] (AV) -- (ctx);
+
+  \node[font=\scriptsize, text=gray!70, anchor=south] at (1.0, 2.35) {proyecciones lineales};
+  \node[font=\scriptsize, text=vinoCIMAT!85, anchor=south] at (7.8, 2.05) {pesos de atención};
+
+  % ---------------- (b) Atención multicabeza ----------------
+  \node[panel, anchor=west] at (-2.2, -0.9) {(b) Atención multicabeza};
+
+  \node[io] (Xb) at (-2.0, -3.0) {$\mathbf{X}$};
+  \node[proj, minimum width=2.3cm] (h1) at (1.1, -2.1) {Cabeza 1};
+  \node[proj, minimum width=2.3cm] (h2) at (1.1, -3.0) {Cabeza 2};
+  \node[font=\footnotesize] (vdots) at (1.1, -3.8) {$\vdots$};
+  \node[proj, minimum width=2.3cm] (hh) at (1.1, -4.6) {Cabeza $h$};
+
+  \node[op]  (concat) at (3.7, -3.0) {Concat};
+  \node[proj] (Wo)    at (5.7, -3.0) {$\mathbf{W}^{O}$};
+  \node[result]  (outb)  at (7.8, -3.0) {Salida};
+
+  \draw[flow] (Xb.east) -- (h1.west);
+  \draw[flow] (Xb.east) -- (h2.west);
+  \draw[flow] (Xb.east) -- (hh.west);
+  \draw[flow] (h1.east) -- (concat.west);
+  \draw[flow] (h2.east) -- (concat.west);
+  \draw[flow] (hh.east) -- (concat.west);
+  \draw[flow] (concat) -- (Wo);
+  \draw[flow] (Wo) -- (outb);
+
+  \node[draw=vinoCIMAT!60, dashed, rounded corners=3pt, fit=(h1)(hh),
+        inner sep=6pt,
+        label={[font=\scriptsize, text=vinoCIMAT]above:atención escalada en paralelo}] (heads) {};
+
+\end{tikzpicture}
+\caption{Mecanismo de atención en el Transformer. (a) Atención de producto punto escalado: las representaciones de entrada $\mathbf{X}$ se proyectan linealmente en consultas $\mathbf{Q}$, claves $\mathbf{K}$ y valores $\mathbf{V}$; los pesos se obtienen con $\operatorname{softmax}(\mathbf{Q}\mathbf{K}^{\top}/\sqrt{d_k})$ y se usan para ponderar $\mathbf{V}$ y producir la salida contextual. (b) Atención multicabeza: varias cabezas procesan proyecciones distintas en paralelo, sus salidas se concatenan y se proyectan mediante $\mathbf{W}^{O}$.}
+\label{fig:transformer_attention}
+\end{figure}
