@@ -38,17 +38,17 @@
 % --- Dedicatoria ---
 \chapter*{}
 \begin{flushright}
-  \emph{A mis padres, por todo.}
+  \emph{A mi madre, a mi hermano, a mi tío, y a mis amigos, por todo. }
   \thispagestyle{empty}
 \end{flushright}
 
 % --- Resumen ---
 \chapter*{Resumen}
-\addcontentsline{toc}{chapter}{Resumen}
+  \addcontentsline{toc}{chapter}{Resumen}
 
-Esta tesis aborda el problema de ligado de registros en bases de datos clínicas, tomando como caso de estudio registros de pacientes COVID-19 del Instituto Nacional de Enfermedades Respiratorias (INER). La ausencia de identificadores únicos confiables y la alta variabilidad en la captura de los datos motivan el diseño e implementación de un sistema basado en arquitecturas neuronales profundas y modelos de lenguaje pre-entrenados.
+Esta tesis aborda el problema de ligado de registros en bases de datos clínicas, tomando como caso de estudio, registros de pacientes COVID-19 del Instituto Nacional de Enfermedades Respiratorias (INER). Bajo este contexto, la ausencia de identificadores confiables y la alta heterogeneidad de los datos motivan el diseño e implementación de un sistema basado en arquitecturas neuronales profundas y modelos de lenguaje pre-entrenados capaces de aprender representaciones semánticas de los registros clínicos.
 
-El sistema propuesto opera en dos etapas: recuperación de candidatos y clasificación de pares de registros. Los registros tabulares se transforman en secuencias estructuradas de texto mediante su serialización en formato clave-valor. En la primera etapa, un Bi-Encoder, entrenado con la función de pérdida \textit{Multiple Negatives Ranking Loss} (MNRL), construye un espacio métrico compartido, proyecta los registros en él y recupera eficientemente los candidatos con mayor similitud semántica. En la segunda etapa, cada registro de consulta se empareja con cada uno de los candidatos recuperados. Un Cross-Encoder, entrenado con \textit{Binary Cross Entropy} (BCE), procesa conjuntamente los dos registros para clasificarlos o no como la misma entidad.
+El sistema propuesto opera en dos etapas: recuperación de candidatos y clasificación de pares de registros. Los registros tabulares se transforman en secuencias estructuradas de texto mediante su serialización en formato clave-valor. En la primera etapa, un Bi-Encoder, entrenado con la función de pérdida \textit{Multiple Negatives Ranking Loss} (MNRL), construye un espacio métrico compartido, proyecta los registros en él y recupera eficientemente los candidatos con mayor similitud. En la segunda etapa, cada registro de consulta se empareja con los candidatos recuperados en la etapa anterior. Un Cross-Encoder, entrenado con \textit{Binary Cross Entropy} (BCE), procesa conjuntamente los dos registros para clasificarlos o no como la misma entidad/persona.
 
 También se exploran estrategias de aumento de datos diseñadas para mitigar la desproporción entre pares positivos y negativos y favorecer la capacidad de generalización de los modelos. Los experimentos no evidenciaron una mejora en dicha capacidad, debido a que los patrones sintéticos implementados no reprodujeron adecuadamente la variabilidad de los datos reales.
 
