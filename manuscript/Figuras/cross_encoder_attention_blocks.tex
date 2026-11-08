@@ -1,0 +1,115 @@
+% Diagrama conceptual de la arquitectura Cross-Encoder y la matriz de autoatención por bloques
+\providecolor{petroleo}{HTML}{3B5366}
+\providecolor{vinoCIMAT}{HTML}{7A2237}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  >={Stealth[length=2.2mm]},
+  flow/.style={->, draw=gray!65, line width=0.8pt},
+  tokSpecial/.style={draw=gray!50, fill=gray!12, rounded corners=2pt, font=\scriptsize\ttfamily, inner sep=2.5pt, minimum height=0.55cm},
+  tokA/.style={draw=petroleo, fill=petroleo!15, rounded corners=2pt, font=\scriptsize, inner sep=3pt, minimum height=0.55cm},
+  tokB/.style={draw=vinoCIMAT, fill=vinoCIMAT!15, rounded corners=2pt, font=\scriptsize, inner sep=3pt, minimum height=0.55cm},
+  block/.style={draw=petroleo, fill=petroleo!8, rounded corners=3pt, align=center, font=\footnotesize},
+  head/.style={draw=vinoCIMAT, fill=vinoCIMAT!8, rounded corners=3pt, align=center, font=\footnotesize},
+  score/.style={draw=petroleo, fill=white, rounded corners=3pt, font=\small, inner sep=4pt},
+  matBlockIntra/.style={draw=petroleo!70, fill=petroleo!12, rounded corners=2pt, align=center, font=\footnotesize},
+  matBlockCross/.style={draw=vinoCIMAT!70, fill=vinoCIMAT!14, rounded corners=2pt, align=center, font=\footnotesize}
+]
+
+  % -------------------------------------------------------------
+  % PANEL IZQUIERDO: FLUJO DEL CROSS-ENCODER
+  % -------------------------------------------------------------
+  \node[font=\bfseries\footnotesize, text=petroleo] at (-2.7, 3.8) {(a) Flujo del Cross-Encoder};
+
+  % Entrada conjunta concatenada (piezas contiguas dentro de un contenedor unificado)
+  \node[tokSpecial] (sep1) at (-2.7, 2.9) {[SEP]};
+  \node[tokA, left=1.2pt of sep1]  (xa)  {Registro $x_a$};
+  \node[tokSpecial, left=1.2pt of xa] (cls) {[CLS]};
+  \node[tokB, right=1.2pt of sep1] (xb)  {Registro $x_b$};
+  \node[tokSpecial, right=1.2pt of xb] (sep2) {[SEP]};
+
+  % Caja contenedora que agrupa la secuencia completa como una unidad
+  \begin{pgfonlayer}{background}
+    \node[draw=gray!55, fill=gray!5, rounded corners=3pt, inner sep=3pt, fit=(cls)(sep2)] (seqBox) {};
+  \end{pgfonlayer}
+
+  % Bloque Transformer
+  \node[block, minimum width=5.6cm, minimum height=1.1cm] (trf) at (-2.7, 1.4) {
+    \textbf{Transformer} $T_\phi$ \\
+    {\scriptsize Capas de autoatenci\'on bidireccional profunda}
+  };
+
+  % Una única flecha central que indica la entrada de la secuencia completa
+  \draw[flow] (seqBox.south) -- (trf.north);
+
+  % Vector CLS extraído (alineado verticalmente con el token [CLS])
+  \node[draw=petroleo, fill=white, circle, inner sep=1.5pt, font=\footnotesize] (hcls) at (cls.center |- 0, -0.3) {$\mathbf{h}_{a,b}$};
+  \node[font=\scriptsize, text=gray!80, anchor=west] at (hcls.east) {\;$\mathbf{H}_{a,b}^{[\texttt{CLS}]} \in \mathbb{R}^h$};
+
+  % Salidas ocultas restantes
+  \draw[draw=gray!40, dashed] (-2.7, 0.85) -- (-2.7, 0.1);
+  \node[font=\tiny, text=gray!60] at (-2.0, 0.05) {Tokens contextualizados};
+
+  % Capa de clasificación lineal
+  \node[head, minimum width=4.6cm, minimum height=0.75cm] (clf) at (-2.7, -1.4) {
+    Capa lineal: $\ell_\phi = \mathbf{w}_\phi^\top \mathbf{h}_{a,b} + b_\phi$
+  };
+
+  % Salida sigmoide
+  \node[score] (prob) at (-2.7, -2.6) {$p_\phi = \operatorname{sigmoid}(\ell_\phi) \in [0, 1]$};
+
+  \draw[flow] (cls.center |- trf.south) -- (hcls.north);
+  \draw[flow] (hcls.south) -- (hcls.center |- clf.north);
+  \draw[flow] (clf.south) -- node[right, font=\scriptsize] {$\sigma$} (prob.north);
+
+
+  % -------------------------------------------------------------
+  % PANEL DERECHO: MATRIZ DE ATENCIÓN POR BLOQUES
+  % -------------------------------------------------------------
+  \node[font=\bfseries\footnotesize, text=petroleo] at (3.6, 3.8) {(b) Matriz de autoatenci\'on $\mathbf{A}$};
+
+  % Rótulos de columnas (Claves K)
+  \node[font=\scriptsize\bfseries, text=petroleo] at (2.6, 3.0) {Tokens de $x_a$};
+  \node[font=\scriptsize\bfseries, text=vinoCIMAT] at (4.6, 3.0) {Tokens de $x_b$};
+
+  % Rótulos de filas (Consultas Q)
+  \node[font=\scriptsize\bfseries, text=petroleo, rotate=90, anchor=center] at (1.2, 1.8) {Tokens de $x_a$};
+  \node[font=\scriptsize\bfseries, text=vinoCIMAT, rotate=90, anchor=center] at (1.2, -0.2) {Tokens de $x_b$};
+
+  % Bloques de la matriz A
+  \node[matBlockIntra, minimum width=1.9cm, minimum height=1.9cm] (Aaa) at (2.6, 1.8) {
+    $\mathbf{A}_{aa}$ \\[3pt]
+    {\scriptsize Intra-$x_a$}
+  };
+  \node[matBlockCross, minimum width=1.9cm, minimum height=1.9cm] (Aab) at (4.6, 1.8) {
+    $\mathbf{A}_{ab}$ \\[3pt]
+    {\scriptsize Cruzada} \\[1pt]
+    {\tiny $x_a \to x_b$}
+  };
+  \node[matBlockCross, minimum width=1.9cm, minimum height=1.9cm] (Aba) at (2.6, -0.2) {
+    $\mathbf{A}_{ba}$ \\[3pt]
+    {\scriptsize Cruzada} \\[1pt]
+    {\tiny $x_b \to x_a$}
+  };
+  \node[matBlockIntra, minimum width=1.9cm, minimum height=1.9cm] (Abb) at (4.6, -0.2) {
+    $\mathbf{A}_{bb}$ \\[3pt]
+    {\scriptsize Intra-$x_b$}
+  };
+
+  % Marco exterior de la matriz
+  \draw[thick, draw=gray!70] (1.5, 2.9) -- (1.5, -1.3);
+  \draw[thick, draw=gray!70] (5.7, 2.9) -- (5.7, -1.3);
+
+  % Leyenda conceptual debajo de la matriz (compacta y horizontal)
+  \node[draw=gray!30, fill=gray!5, rounded corners=3pt, align=center, inner sep=4pt] at (3.6, -2.1) {
+    \scriptsize
+    \tikz\draw[fill=petroleo!15, draw=petroleo] (0,0) rectangle (0.25,0.18); \; Intra-registro ($\mathbf{A}_{aa}, \mathbf{A}_{bb}$)
+    \quad
+    \tikz\draw[fill=vinoCIMAT!15, draw=vinoCIMAT] (0,0) rectangle (0.25,0.18); \; Cruzadas ($\mathbf{A}_{ab}, \mathbf{A}_{ba}$)
+  };
+
+\end{tikzpicture}
+\caption{Mecanismo de autoatenci\'on por bloques en el Cross-Encoder. (a) Ambos registros se concatenan y alimentan conjuntamente al Transformer; el vector contextualizado $\mathbf{h}_{a,b}$ del token \texttt{[CLS]} se proyecta para producir la probabilidad de ligado. (b) Estructura por bloques de la matriz de atenci\'on $\mathbf{A}$: los bloques diagonales modelan relaciones internas dentro de cada registro, mientras que los bloques fuera de la diagonal capturan dependencias cruzadas directas entre los atributos de ambos registros.}
+\label{fig:cross_encoder_attention_blocks}
+\end{figure}

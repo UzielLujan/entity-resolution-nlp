@@ -4,19 +4,22 @@
 
 \section{El problema de ligado de registros (\textit{Record Linkage})}
 
-El ligado de registros (\textit{Record Linkage}) constituye un problema fundamental para la integración de información proveniente de fuentes de datos heterogéneas y fragmentadas. En la literatura de ciencias de la computación, particularmente en las áreas de bases de datos e integración de información, este problema se relaciona estrechamente con la resolución o emparejamiento de entidades (\textit{Entity Resolution} o \textit{Entity Matching})~\cite{li2020,cappuzzo2020}. En ambos casos, el objetivo es determinar si dos o más registros provenientes de distintas fuentes representan a la misma entidad del mundo real, especialmente cuando no existe un identificador único global y confiable. La complejidad del problema se incrementa ante la presencia de errores tipográficos, variaciones en la grafía, campos faltantes y diferencias en los formatos de almacenamiento, lo que convierte su resolución en un desafío estadístico y computacional relevante.
+El ligado de registros (\textit{Record Linkage}) constituye un problema fundamental para la integración de información proveniente de fuentes de datos heterogéneas y fragmentadas. En la literatura de ciencias de la computación, particularmente en las áreas de bases de datos e integración de información, este problema se relaciona estrechamente con la resolución o emparejamiento de entidades (\textit{Entity Resolution} o \textit{Entity Matching})~\cite{li2020,cappuzzo2020}. En ambos casos, el objetivo es determinar si dos o más registros provenientes de distintas fuentes representan a la misma entidad del mundo real, especialmente cuando no existe un identificador único global y confiable. La complejidad del problema se incrementa ante la presencia de errores tipográficos, variaciones en la grafía, campos faltantes y diferencias en los formatos de captura, lo que convierte su resolución en un desafío estadístico y computacional relevante.
 
 Desde una perspectiva histórica, el concepto fue introducido formalmente por Dunn~\cite{dunn1946} en 1946, quien visualizó el ligado de registros como una herramienta esencial para la creación de un sistema de información longitudinal que permitiera el seguimiento de individuos a lo largo de su ciclo de vida. No obstante, la formalización matemática y probabilística del problema no se consolidaría sino hasta 1969, con el trabajo seminal de Fellegi y Sunter~\cite{fellegi1969}. Su modelo establece un marco de decisión basado en la teoría de pruebas de hipótesis, donde cada par de registros es clasificado en una de tres categorías: enlace (\textit{link}), no enlace (\textit{non-link}) o caso indeciso (\textit{clerical review}), basándose en la probabilidad de observar ciertas concordancias en los atributos dado que el par es realmente un duplicado o no.
 
-Matemáticamente, sean $A$ y $B$ dos conjuntos de registros, con $n=|A|$ y $m=|B|$, y sea $e(r)$ la entidad del mundo real representada por un registro $r$. El conjunto de enlaces verdaderos puede expresarse como la relación
+Matemáticamente, sean $A$ y $B$ dos \textbf{conjuntos de registros}, con $n=|A|$ y $m=|B|$, y sea $e(r)$ la entidad real representada por un registro $r$. Entonces, el conjunto de pares de registros correspondientes a la misma entidad puede expresarse mediante la relación:
 
 \[
 M=\{(a,b)\in A\times B : e(a)=e(b)\}.
 \]
 
-El objetivo del ligado de registros es estimar $M$ a partir de los atributos observados, dado que la identidad representada por cada registro no se conoce de manera directa. Una estrategia exhaustiva requiere evaluar los $n\cdot m$ pares contenidos en el producto cartesiano $A\times B$, por lo que su complejidad es $\mathcal{O}(nm)$. Cuando ambas bases tienen tamaños comparables, es decir, $n\approx m\approx N$, esta complejidad puede expresarse como $\mathcal{O}(N^2)$. En contextos institucionales como el del INER, este crecimiento representa una barrera computacional que exige mecanismos eficientes para reducir el espacio de candidatos.
+\noindent donde $A\times B$ es el producto cartesiano de $A$ y $B$.
 
-En la literatura contemporánea, la resolución de entidades se utiliza como un concepto amplio que abarca tareas relacionadas, como el ligado de registros entre distintas fuentes y la deduplicación dentro de una misma base de datos~\cite{christen2012}. En esta tesis, el problema se aborda desde una perspectiva semántica, con el objetivo de superar las limitaciones de la comparación sintáctica mediante representaciones vectoriales aprendidas.
+En la práctica, el conjunto $M$ es desconocido y debe ser estimado a partir de la información observada en los registros, lo que constituye el núcleo del problema de ligado de registros.
+Una estrategia exhaustiva requiere evaluar los $n\cdot m$ pares contenidos en el producto cartesiano $A\times B$, por lo que su complejidad es $\mathcal{O}(nm)$. Cuando ambas bases tienen tamaños comparables, es decir, $n\approx m\approx N$, esta complejidad puede expresarse como $\mathcal{O}(N^2)$. En contextos institucionales como el del INER, este crecimiento representa una barrera computacional que exige mecanismos eficientes para reducir el espacio de candidatos a partir del contenido de los registros.
+
+En la literatura contemporánea, la resolución de entidades se utiliza como un concepto amplio que abarca tareas relacionadas, como el ligado de registros entre distintas fuentes y la deduplicación dentro de una misma base de datos~\cite{christen2012}. En esta tesis, el problema se aborda desde una perspectiva semántica, con el objetivo de superar las limitaciones de la comparación sintáctica mediante representaciones vectoriales aprendidas con modelos de redes neuronales profundas, que permiten capturar relaciones contextuales entre los registros clínicos del INER.
 
 % 2.2 ENFOQUES CLÁSICOS Y MÉTRICAS DE SIMILITUD LÉXICA
 %
@@ -118,28 +121,54 @@ Por otro lado, enfoques basados en fragmentos de texto o $q$-gramas~\cite{ukkone
 Más allá de la comparación de una sola cadena, el modelo de Fellegi-Sunter~\cite{fellegi1969} proporcionó la base teórica para combinar múltiples comparaciones de atributos. En este modelo, cada atributo recibe un peso basado en su capacidad de discriminación; por ejemplo, una coincidencia en un apellido poco común tiene un peso mayor que una coincidencia en un nombre frecuente. En contextos textuales, también pueden emplearse técnicas de ponderación de términos como TF-IDF (\textit{Term Frequency-Inverse Document Frequency})~\cite{salton1988}, que permiten identificar qué palabras dentro de un registro son más informativas para el proceso de vinculación.
 
 \subsection{Limitaciones de la comparación sintáctica}
-Las métricas sintácticas descritas anteriormente resultan útiles cuando las diferencias entre los registros se limitan a variaciones morfológicas y léxicas en su escritura. Sin embargo, sus comparaciones se derivan principalmente de la coincidencia de caracteres o tokens y no representan explícitamente el significado ni el contexto de la información~\cite{christen2012,barlaug2021}. En consecuencia, dos valores con formas léxicas distintas pueden recibir una similitud baja aun cuando sean semánticamente equivalentes; de manera inversa, dos cadenas similares pueden corresponder a entidades diferentes. En las bases de datos clínicas, la variación terminológica, las abreviaturas y la presencia de texto libre acentúan esta limitación. Esta brecha motiva la transición hacia representaciones vectoriales aprendidas y modelos de redes neuronales artificiales para el emparejamiento de entidades~\cite{barlaug2021,li2020}.
+Las métricas sintácticas descritas anteriormente resultan útiles cuando las diferencias entre los registros se limitan a variaciones morfológicas y léxicas en su escritura. Sin embargo, sus comparaciones se derivan principalmente de la coincidencia de caracteres o palabras y no representan explícitamente el significado ni el contexto de la información~\cite{christen2012,barlaug2021}. En consecuencia, dos valores con formas léxicas distintas pueden recibir una similitud baja aun cuando sean semánticamente equivalentes; de manera inversa, dos cadenas similares pueden corresponder a entidades diferentes. En las bases de datos clínicas, la variación de términos, las abreviaturas y la presencia de texto libre acentúan esta limitación. Esta brecha motiva la transición hacia representaciones vectoriales aprendidas con modelos de redes neuronales artificiales para el emparejamiento de entidades~\cite{barlaug2021,li2020}.
 
 % 2.3 EL CAMBIO DE PARADIGMA: APRENDIZAJE PROFUNDO Y MODELOS DE LENGUAJE PRE-ENTRENADOS
 
 \section{Aprendizaje profundo y modelos de lenguaje pre-entrenados}
 
-Los avances recientes en los enfoques de redes neuronales para la resolución de entidades se han beneficiado de la evolución de las representaciones vectoriales en el procesamiento de lenguaje natural (PLN)~\cite{barlaug2021}. A diferencia de las métricas léxicas descritas anteriormente, los \textit{embeddings} densos codifican los datos de entrada en espacios vectoriales donde pueden calcularse medidas de similaridad, lo que permite aprovechar similitudes que no se reducen a coincidencias exactas de caracteres o tokens~\cite{li2020}. Sin embargo, las ventajas del aprendizaje profundo no son uniformes para todos los tipos de datos: el estudio sistemático de Mudgal et al.~\cite{mudgal2018} encontró sus principales beneficios en problemas de emparejamiento con registros textuales o ruidosos, mientras que en datos estructurados y limpios los métodos convencionales podían conservar un desempeño competitivo.
+Los avances recientes en los modelos con redes neuronales para la resolución de entidades se han beneficiado de la evolución de las representaciones vectoriales en el procesamiento de lenguaje natural (PLN)~\cite{barlaug2021}. A diferencia de las métricas léxicas descritas anteriormente, los \textit{embeddings} densos codifican los datos de entrada en espacios vectoriales continuos donde se pueden calcular medidas de similaridad a las representaciones de los datos, esto permite aprovechar similitudes más allá de coincidencias exactas de caracteres o palabras~\cite{li2020}. Sin embargo, las ventajas del aprendizaje profundo no son uniformes para todos los tipos de datos: el estudio de Mudgal et al.~\cite{mudgal2018} encontró sus principales beneficios en problemas de emparejamiento con registros textuales o ruidosos, mientras que en datos estructurados y limpios los métodos convencionales podían conservar un desempeño competitivo.
 
 \subsection{De representaciones dispersas a vectores densos}
-Las representaciones tradicionales del texto, como los vectores de conteos y TF-IDF, asignan dimensiones que dependen de la cantidad de términos del vocabulario, lo que produce vectores dispersos de alta dimensionalidad~\cite{salton1988}. Aunque estas representaciones permiten cuantificar la importancia y coincidencia de los términos, no construyen por sí mismas un espacio vectorial en el que palabras relacionadas ocupen posiciones cercanas.
 
-Uno de los antecedentes fundamentales del modelado semántico mediante redes neuronales es el modelo de lenguaje probabilístico propuesto por Bengio et al.~\cite{bengio2003}. En lugar de estimar la probabilidad de una oración mediante conteos discretos de $n$-gramas, este modelo asocia cada palabra del vocabulario con un vector de características reales y entrena una red neuronal para predecir la siguiente palabra a partir de los vectores de las palabras previas. Al optimizar simultáneamente los pesos de la red y los vectores de entrada, palabras que aparecen en contextos similares adquieren representaciones vectoriales cercanas.
+Las representaciones tradicionales de texto basadas en conteos, como \textit{Bag of Words} (BoW) y TF-IDF, representan cada documento $d$ mediante un vector cuyas dimensiones corresponden a los términos del vocabulario. Si $V$ es el vocabulario, entonces $d \in \mathbb{R}^{\lvert V\rvert}$, donde $\lvert V\rvert$ es el tamaño del vocabulario. Estas representaciones suelen ser dispersas, ya que un documento típico solo contiene una fracción pequeña de todos los términos posibles~\cite{salton1988}.
 
-\paragraph{Representaciones estáticas.}
-Este paradigma se consolidó con Word2Vec~\cite{mikolov2013}, que aprende vectores a partir de los contextos locales en los que aparecen las palabras, y con GloVe~\cite{pennington2014}, que incorpora estadísticas globales de co-ocurrencia del corpus. En ambos casos, las regularidades lingüísticas se representan mediante relaciones geométricas en un espacio continuo.
+Por otra parte, en los modelos de lenguaje clásicos basados en $n$-gramas, el objetivo es estimar la probabilidad condicional de que aparezca una palabra $w_t$ dada la secuencia de las $n-1$ palabras anteriores:
+\[
+P(w_t \mid w_{t-n+1}, \ldots, w_{t-1})
+\]
 
-FastText~\cite{bojanowski2017} extendió este enfoque al representar cada palabra como la suma de los vectores de sus $n$-gramas de caracteres, además del vector de la palabra completa. De este modo, aunque una palabra sea poco frecuente, contenga un error tipográfico o no haya sido observada durante el entrenamiento, el modelo puede construir su vector a partir de las raíces, prefijos o fragmentos de caracteres que comparte con otras palabras conocidas.
+En consecuencia, el número de probabilidades condicionales que deben estimarse puede crecer como $\lvert V\rvert^n$. Este crecimiento exponencial provoca que muchas combinaciones de palabras aparezcan muy pocas veces o jamás en el corpus de entrenamiento, lo que genera un problema severo de escasez de datos (\textit{data sparsity}) y limita la capacidad de generalización del modelo.
 
-\paragraph{Representaciones contextualizadas mediante redes recurrentes.}
-A pesar de sus diferencias en la forma de construir el vocabulario, Word2Vec, GloVe y FastText producen representaciones estáticas: una vez finalizado el entrenamiento, cada forma léxica se asocia con un único vector fijo, sin tomar en cuenta las palabras que la acompañan dentro de una oración específica. Así, el término ``alta'' tendría una única representación aunque pudiera referirse al egreso hospitalario o describir una magnitud elevada.
+En conjunto, estos enfoques representan las palabras como unidades discretas y dependen de la observación explícita de términos o secuencias particulares. Por ello, tienen dificultades para capturar similitudes semánticas entre palabras relacionadas y generalizar a combinaciones que no aparecen en el corpus.
 
-Los modelos contextuales abordaron esta limitación al calcular la representación de cada palabra en función de la secuencia completa. ELMo~\cite{peters2018}, basado en un modelo de lenguaje bidireccional con redes LSTM, genera vectores que cambian según el contexto y permiten modelar fenómenos como la polisemia. Esta distinción entre representaciones estáticas y contextualizadas proporciona el antecedente conceptual para las arquitecturas basadas en atención descritas en la subsección siguiente.
+Esta limitación motivó el desarrollo de modelos de lenguaje con redes neuronales basados en representaciones distribuidas de palabras. Una \textbf{representación distribuida} es una forma de representar una palabra mediante un vector denso de valores reales, donde la información sobre su significado no está almacenada en una sola posición, sino distribuida entre todas sus dimensiones. En el modelo propuesto por Bengio et al.~\cite{bengio2003}, cada palabra $w \in V$ se asocia con un vector continuo $C(w) \in \mathbb{R}^m$. Estos vectores se almacenan en una matriz de embeddings compartida $C \in \mathbb{R}^{\lvert V\rvert \times m}$, donde $m$ es la dimensión de la representación y, usualmente, $m \ll \lvert V\rvert$.
+
+En este modelo, una red neuronal \textit{feedforward} toma los vectores de las $n-1$ palabras previas $(w_{t-n+1}, \ldots, w_{t-1})$, las concatena en un solo vector de entrada y las transforma mediante capas con parámetros aprendibles para obtener a la salida un vector que asigna una puntuación $y_i$ a cada palabra $i$ del vocabulario. La probabilidad condicional de la siguiente palabra se calcula entonces mediante la función \textit{softmax}:
+
+\[
+P(w_t = i \mid w_{t-n+1}, \ldots, w_{t-1}) = \frac{\exp(y_i)}{\sum_{j=1}^{\lvert V\rvert} \exp(y_j)}
+\]
+
+
+Al entrenar la red para predecir la siguiente palabra, los gradientes ajustan simultáneamente la matriz de embeddings $C$. De este proceso, emergen relaciones semánticas en el espacio vectorial continuo, agrupando palabras que comparten contextos similares en regiones cercanas sin necesidad de etiquetado manual.
+
+Sin embargo, este enfoque presentaba dos limitaciones computacionales severas: el cálculo del denominador en la función \textit{softmax} escala linealmente con el tamaño del vocabulario $\mathcal{O}(\lvert V\rvert)$ en cada paso, y la capa de entrada exige fijar un tamaño de ventana $n-1$ rígido y de corto alcance.
+
+Para resolver la ineficiencia computacional del entrenamiento, Word2Vec~\cite{mikolov2013} simplificó la arquitectura al eliminar la capa oculta no lineal e introducir métodos de estimación eficiente como \textit{Negative Sampling}. A través de sus arquitecturas \textit{Continuous Bag-of-Words} (CBOW) y \textit{Skip-gram}, el modelo aprende vectores estáticos aprovechando contextos locales. Complementariamente, GloVe~\cite{pennington2014} logró capturar estadísticas globales al factorizar la matriz de co-ocurrencia palabra-palabra del corpus completo.
+
+No obstante, estos modelos asignan un único vector fijo a cada forma léxica en el vocabulario, por lo que las palabras fuera del vocabulario (OOV, por sus siglas en inglés) o aquellas con errores tipográficos no pueden representarse directamente mediante un vector de palabra aprendido. FastText~\cite{bojanowski2017} mitigó esta deficiencia al descomponer cada palabra $w$ en un conjunto de $n$-gramas de caracteres $G_w$. La representación final de la palabra se construye mediante la suma de los vectores de sus fragmentos de caracteres:
+\[
+v_w = z_w + \sum_{g \in G_w} z_g,
+\]
+donde $z_w$ es el vector de la palabra completa y $z_g$ es el vector
+asociado al $n$-grama de caracteres $g$. Esta aproximación resulta fundamental en tareas donde la variabilidad morfológica o la presencia de ruido sintáctico y tipográfico es elevada.
+
+
+A pesar de estos avances, los modelos como Word2Vec, GloVe y FastText producen representaciones \textbf{vectoriales estáticas}, es decir, una vez finalizado el entrenamiento, cada término se asocia con un único vector fijo, ignorando el contexto específico de la secuencia en la que se encuentra y dificultando la distinción de palabras con múltiples significados o funciones según su entorno.
+Los modelos de lenguaje basados en redes neuronales recurrentes (RNN) y unidades LSTM (\textit{Long Short-Term Memory}) introdujeron un estado oculto dinámico $h_t$ que se actualiza secuencialmente a medida que procesa la cadena de texto, eliminando la restricción de la ventana fija de contexto. Arquitecturas como ELMo~\cite{peters2018} aprovecharon LSTM bidireccionales para generar vectores contextualizados, de modo que la representación de un token incorpora información de los elementos que lo preceden y lo siguen en la secuencia.
+
+Si bien los modelos recurrentes lograron capturar el contexto dinámico, su procesamiento estrictamente secuencial impide la paralelización del entrenamiento en hardware moderno. Además, al procesar secuencias extensas, sufren el problema del desvanecimiento del gradiente (\textit{vanishing gradient}), lo que ocasiona una degradación progresiva en el flujo de información a largo plazo. Esta limitación motivó la búsqueda de arquitecturas alternativas a la recurrencia y condujo al desarrollo de modelos con arquitecturas basadas enteramente en mecanismos de atención.
 
 \subsection{La arquitectura Transformer y el mecanismo de atención}
 La arquitectura Transformer, propuesta por Vaswani et al.~\cite{vaswani2017}, estableció un modelo de procesamiento de secuencias basado exclusivamente en mecanismos de atención, prescindiendo de estructuras recurrentes y convolucionales. Una de sus operaciones centrales es la atención de producto punto escalado (\textit{Scaled Dot-Product Attention}). En el caso de la autoatención, las representaciones de una misma secuencia se proyectan linealmente en tres matrices: consultas ($Q$), claves ($K$) y valores ($V$). La salida se calcula como una suma ponderada de los valores, donde los pesos reflejan la compatibilidad entre cada consulta y las claves:
@@ -172,33 +201,36 @@ En esta tesis, los modelos preentrenados proporcionan el punto de partida para p
 
 La aplicación directa de modelos de lenguaje densos para evaluar el producto cartesiano de dos bases de datos masivas resulta computacionalmente prohibitiva. El paso de inferencia (\textit{Forward Pass}) de un Transformer basado en atención cruzada exhaustiva posee una complejidad cuadrática respecto a la longitud de la secuencia, lo que hace inviable calcular la similitud de millones de pares. Para mitigar este cuello de botella computacional, el estado del arte ha convergido hacia el paradigma \textit{Retrieve \& Re-rank} (Recuperación y Re-ordenamiento), una arquitectura de dos fases que equilibra eficiencia y precisión semántica.
 
-\subsection{Aprendizaje métrico y recuperación eficiente con Bi-Encoders}
+\subsection{Aprendizaje métrico y Bi-Encoders}
 
 \paragraph{Aprendizaje métrico.}
-El aprendizaje métrico busca construir un espacio de representación en el que la proximidad entre dos objetos refleje una relación relevante para la tarea~\cite{kulis2013}. En el ligado de registros entre dos bases de datos $A$ y $B$, con $n=|A|$ y $m=|B|$ registros respectivamente, esta relación corresponde a la pertenencia a una misma entidad del mundo real. Sea $e(\cdot)$ la función que asigna a cada registro el identificador de la entidad a la que pertenece, de modo que $e(a)=e(b)$ indica que $a\in A$ y $b\in B$ refieren a la misma entidad. Asimismo, sea $\sigma$ la función que transforma un registro en una secuencia textual serializada y sea $\mathcal{X}$ el conjunto de secuencias que pueden utilizarse como entrada. Para dos registros $a\in A$ y $b\in B$, se define
+El aprendizaje métrico busca construir un espacio de representación en el que la cercanía entre dos objetos refleje una relación relevante para la tarea a resolver~\cite{kulis2013}. En el ligado de registros entre dos bases de datos $A$ y $B$, con $n=|A|$ y $m=|B|$ como el número de registros respectivos, la tarea corresponde a determinar si dado un conjunto de registros su cercanía en el espacio se puede traducir en una relación de igualdad entre ellos.
 
+Sea $e(\cdot)$ la función que asigna a cada registro el identificador de la entidad a la que pertenece, de modo que $e(a)=e(b)$ indica que $a\in A$ y $b\in B$ son en realidad la misma entidad. Asimismo, sea $\sigma$ la función que transforma un registro tabular en una secuencia textual serializada $x$ y sea $\mathcal{X}$ el conjunto de todas las secuencias de los registros en el producto cartesiano $A \times B$.
+
+Así, para dos registros $a\in A$ y $b\in B$, se define
 \[
 x_a=\sigma(a),
 \qquad
 x_b=\sigma(b).
 \]
 
-El codificador basado en un modelo de red neuronal artificial (referido de forma abreviada en la literatura como codificador neuronal) es una función parametrizada
+Entonces, la tarea de ligado de registros puede expresarse como un problema de aprendizaje métrico en el que: dado un par de secuencias $(x_a,x_b) \in \mathcal{X}$, determinar si $e(a)=e(b)$.
 
+
+Un modelo de red neuronal artificial es una función parametrizada
 \[
 f_\theta:\mathcal{X}\longrightarrow\mathbb{R}^{d},
 \]
-
-que proyecta cada secuencia en un vector de dimensión fija. En consecuencia,
-
+que puede proyectar cada registro en un vector de dimensión fija. En ese sentido, la función $f_\theta$ define una transformación del espacio de entrada al espacio de representación actuando como un codificador de los registros. En consecuencia,
 \[
 \mathbf{z}_a=f_\theta(x_a),
-\qquad
+\qquad \text{y} \qquad
 \mathbf{z}_b=f_\theta(x_b).
 \]
+son representaciones vectoriales densas de los registros $a$ y $b$, respectivamente, en un espacio de representación de dimensión $d$. La función $f_\theta$ se aprende a partir de un conjunto de entrenamiento de registros etiquetados como \textit{enlace} o \textit{no enlace}, donde la tarea objetivo es que la geometría del espacio refleje la relación entre las entidades representadas.
 
 La función $f_\theta$ no constituye por sí misma el espacio de representación; este corresponde al conjunto imagen
-
 \[
 \mathcal{Z}_\theta
 =f_\theta(\mathcal{X})
@@ -317,7 +349,9 @@ En cada capa del Transformer, las consultas, claves y valores se calculan a part
 
 Los bloques diagonales $\mathbf A_{aa}$ y $\mathbf A_{bb}$ representan interacciones entre tokens del mismo registro. Los bloques $\mathbf A_{ab}$ y $\mathbf A_{ba}$ contienen interacciones cruzadas: permiten que un token de $x_a$ atienda a los tokens de $x_b$ y viceversa. Por ejemplo, el valor de un atributo clínico en un registro puede contextualizarse directamente respecto del nombre del atributo y del valor correspondiente en el otro registro.
 
-Aunque estas interacciones son cruzadas entre registros, el mecanismo continúa siendo autoatención, porque las matrices de consultas, claves y valores se derivan de una misma secuencia concatenada. No se trata de una capa de \textit{cross-attention} separada, como la utilizada entre el codificador y el decodificador de otras arquitecturas.
+Aunque estas interacciones son cruzadas entre registros, el mecanismo continúa siendo autoatención, porque las matrices de consultas, claves y valores se derivan de una misma secuencia concatenada. No se trata de una capa de \textit{cross-attention} separada, como la utilizada entre el codificador y el decodificador de otras arquitecturas. La Figura~\ref{fig:cross_encoder_attention_blocks} ilustra este procesamiento conjunto y la partición por bloques de la matriz de autoatención.
+
+\input{Figuras/cross_encoder_attention_blocks}
 
 \paragraph{Clasificación del par.}
 DITTO aplica esta estrategia al emparejamiento de entidades: serializa los atributos mediante los tokens \texttt{[COL]} y \texttt{[VAL]}, concatena los dos registros y utiliza la representación contextualizada de \texttt{[CLS]} para realizar una clasificación binaria~\cite{li2020}. Sea
