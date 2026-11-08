@@ -40,6 +40,7 @@ Nunca lee ni modifica `INER_DATA_ROOT/raw/`.
 | Comandos de splitting, entrenamiento, evaluación y exportación | `docs/comandos_proyecto.md` |
 | Correspondencia entre el repositorio y los capítulos de tesis | `docs/contexto_manuscrito_tesis.md` |
 | Redacción del manuscrito | `manuscript/` |
+| Comentarios y correcciones de la revisión del asesor (Cap. 1 y 2) | `~/Documents/Maestria/Tesis/Revisiones/revision_de_comentarios_de_tesis.md` |
 | Presentación de avance y póster | `~/Documents/Maestria/Tesis/Presentacion/` |
 | Material complementario para redacción académica y extensiones de ingeniería: fundamentos, entorno, métricas, incertidumbre, agente LLM, RAG e interfaz interactiva | `docs/Anexos/` |
 
