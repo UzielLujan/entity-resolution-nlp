@@ -20,14 +20,14 @@
   % ---------------- Etapa 1: pre-entrenamiento ----------------
   \node[io, text width=2.7cm]      (corpus)   at (-5.75, 3.2) {Corpus no\\etiquetado};
   \node[pre, text width=3.3cm]     (pretrain) at (-1.92, 3.2) {Pre-entrenamiento\\auto-supervisado};
-  \node[weights, text width=2.7cm] (weights)  at ( 1.76, 3.2) {Pesos\\pre-entrenados};
+  \node[weights, text width=2.7cm] (weights)  at ( 1.76, 3.2) {Pesos\\preentrenados};
 
   \draw[flow] (corpus) -- (pretrain);
   \draw[flow] (pretrain) -- (weights);
 
   % ---------------- Etapa 2: ajuste fino ----------------
   \node[io, text width=2.95cm]    (data)    at (-5.75, 0.8) {Datos etiquetados\\de la tarea};
-  \node[pre, text width=3.3cm]    (encoder) at (-1.92, 0.8) {Encoder inicializado\\con pesos pre-entrenados};
+  \node[pre, text width=3.3cm]    (encoder) at (-1.92, 0.8) {Encoder inicializado\\con pesos preentrenados};
   \node[head, text width=2.5cm]   (head)    at ( 1.66, 0.8) {Cabeza de tarea};
   \node[result, text width=2.5cm] (model)   at ( 4.84, 0.8) {Modelo ajustado};
 

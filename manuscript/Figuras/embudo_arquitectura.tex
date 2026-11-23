@@ -1,4 +1,4 @@
-% Diagrama de la arquitectura Retrieve & Re-rank
+% Diagrama de la arquitectura en dos etapas
 % Adaptado de Presentacion_4/Secciones/01_recap.tex
 \providecolor{petroleo}{HTML}{3B5366}
 \providecolor{vinoCIMAT}{HTML}{7A2237}
@@ -23,7 +23,7 @@
   % --- Embudo 1: Bi-Encoder (petróleo) ---
   \fill[petroleo] (2.9, -1.1) -- (2.9, 1.1) -- (5.0, 0.45) -- (5.0, -0.45) -- cycle;
   \node[white, font=\footnotesize\bfseries] at (3.95, 0.25) {Bi-Encoder};
-  \node[white, font=\footnotesize\itshape]  at (3.95, -0.15) {retrieval};
+  \node[white, font=\footnotesize\itshape]  at (3.95, -0.15) {recuperación};
 
   % --- Arrow 2 ---
   \draw[arr] (5.2, 0) -- (5.9, 0);
@@ -40,18 +40,18 @@
   % --- Embudo 2: Cross-Encoder (vino) ---
   \fill[vinoCIMAT] (8.9, -0.75) -- (8.9, 0.75) -- (11.7, 0.25) -- (11.7, -0.25) -- cycle;
   \node[white, font=\footnotesize\bfseries] at (10.3, 0.2)  {Cross-Encoder};
-  \node[white, font=\footnotesize\itshape]  at (10.3, -0.2) {re-ranking};
+  \node[white, font=\footnotesize\itshape]  at (10.3, -0.2) {clasificación};
 
   % --- Arrow 4 ---
   \draw[arr] (11.9, 0) -- (12.6, 0);
 
   % --- Match / No Match (dos pills) ---
-  \filldraw[semVerde!75, rounded corners=6pt] (12.8, 0.15) rectangle (14.3, 0.6);
-  \node[white, font=\footnotesize\bfseries] at (13.55, 0.37) {Match};
+  \filldraw[semVerde!75, rounded corners=6pt] (12.8, 0.15) rectangle (15.4, 0.6);
+  \node[white, font=\footnotesize\bfseries] at (14.1, 0.37) {Misma persona};
 
-  \filldraw[hardNegative!90, rounded corners=6pt] (12.8, -0.6) rectangle (14.3, -0.15);
-  \node[white, font=\footnotesize\bfseries] at (13.55, -0.37) {No Match};
+  \filldraw[hardNegative!90, rounded corners=6pt] (12.8, -0.6) rectangle (15.4, -0.15);
+  \node[white, font=\footnotesize\bfseries] at (14.1, -0.37) {Distinta persona};
 \end{tikzpicture}
-\captionof{figure}{Arquitectura \textit{Retrieve \& Re-rank}.}
+\captionof{figure}{Arquitectura del sistema en dos etapas: recuperación de candidatos mediante un Bi-Encoder y clasificación de pares de registros mediante un Cross-Encoder.}
 \label{fig:embudo_arquitectura}
 \end{center}

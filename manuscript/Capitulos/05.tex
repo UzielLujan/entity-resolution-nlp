@@ -26,7 +26,7 @@ Se evaluaron las cuatro variantes de serialización que resultan de combinar la 
     \end{tabular}
 \end{table}
 
-Las métricas de recuperación se encuentran prácticamente saturadas: todas las variantes alcanzan Recall@5 perfecto y sus diferencias de MRR son menores a cinco diezmilésimas. En consecuencia, $\Delta_{\mathrm{sep}}$ aporta el criterio que permite distinguir la estructura interna del espacio métrico. La variante \texttt{tok\_skipnull} obtuvo simultáneamente la menor pérdida de validación y la mayor separación promedio, por lo que se seleccionó como configuración canónica.
+Las métricas de recuperación se encuentran prácticamente saturadas: todas las variantes alcanzan Recall@5 perfecto y sus diferencias de MRR son menores a cinco diezmilésimas. En consecuencia, $\Delta_{\mathrm{sep}}$ aporta el criterio que permite distinguir la estructura interna del espacio métrico. La variante \texttt{tok\_skipnull} obtuvo simultáneamente la menor pérdida de validación y la mayor separación promedio, por lo que se seleccionó como la configuración de serialización del sistema.
 
 \begin{figure}[htbp]
     \centering
@@ -71,7 +71,7 @@ Tras el entrenamiento contrastivo, el Bi-Encoder BETO con \texttt{tok\_skipnull}
 % ==============================================================================
 \section{Hard Negative Mining}
 
-Con la variante canónica se recuperaron los 20 candidatos más similares por registro para construir los pares del Cross-Encoder. El procedimiento generó 8,513 pares positivos y 69,122 negativos difíciles en entrenamiento; 1,851 y 14,415 en validación; y 1,860 y 14,490 en test, respectivamente.
+Con el Bi-Encoder entrenado sobre la variante \texttt{tok\_skipnull} se recuperaron los 20 candidatos más similares por registro para construir los pares del Cross-Encoder. El procedimiento generó 8,513 pares positivos y 69,122 negativos difíciles en entrenamiento; 1,851 y 14,415 en validación; y 1,860 y 14,490 en test, respectivamente.
 
 No se observaron positivos difíciles en las tres particiones: todos los pares positivos conocidos aparecieron en los primeros 20 candidatos. Este resultado confirma que el Bi-Encoder conserva la cobertura necesaria para la segunda etapa. Sin embargo, no demuestra cobertura sobre coincidencias ausentes del \textit{silver standard}; esa limitación se retoma en la discusión final.
 
@@ -88,7 +88,7 @@ La regla de decisión se ajustó de forma independiente al entrenamiento. Con el
 \begin{table}[htbp]
     \centering
     \small
-    \caption{Evaluación del Cross-Encoder canónico en test con $\tau=0.12$.}
+    \caption{Evaluación del Cross-Encoder final en test con $\tau=0.12$.}
     \label{tab:cross_encoder_results}
     \begin{tabular}{l r}
         \hline
@@ -145,6 +145,6 @@ Por esta razón, el diagnóstico de ambigüedad se realizó con la entropía de 
 % ==============================================================================
 \section{Discusión integradora}
 
-El sistema \textit{Retrieve \& Re-rank} logra una recuperación de alta cobertura y una clasificación casi perfecta respecto del \textit{silver standard} disponible. La comparación entre variantes identifica a \texttt{tok\_skipnull} como la mejor configuración dentro del experimento, aunque la ventaja en separación frente a \texttt{notok\_skipnull} es reducida. Esta conclusión se sostiene en pérdida de validación y $\Delta_{\mathrm{sep}}$, pues las métricas de ranking se saturan en el conjunto de prueba.
+El sistema en dos etapas conserva entre los candidatos recuperados todos los pares que corresponden a la misma persona y logra una clasificación casi perfecta, ambos respecto del \textit{silver standard} disponible. La comparación entre variantes identifica a \texttt{tok\_skipnull} como la mejor configuración dentro del experimento, aunque la ventaja en separación frente a \texttt{notok\_skipnull} es reducida. Esta conclusión se sostiene en pérdida de validación y $\Delta_{\mathrm{sep}}$, pues las métricas de ranking se saturan en el conjunto de prueba.
 
 El resultado no equivale a una validación clínica ni a una garantía de que se recuperen todas las coincidencias reales. Las etiquetas fueron construidas mediante un proceso de consolidación y revisión, por lo que pueden conservar errores o coincidencias no observadas. En consecuencia, el sistema debe entenderse como un apoyo a la integración de registros y a la priorización de revisión humana, no como un sustituto autónomo de validación institucional.

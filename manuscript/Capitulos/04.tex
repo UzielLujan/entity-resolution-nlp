@@ -108,21 +108,21 @@ Esta heterogeneidad de cobertura no es un obstáculo para el enfoque propuesto, 
 % ==============================================================================
 % 4.2 ARQUITECTURA GENERAL Y EL PROBLEMA O(N^2)
 % ==============================================================================
-\section{Arquitectura general del sistema: \textit{Retrieve \& Re-rank}}
+\section{Arquitectura general del sistema: recuperación de candidatos y clasificación de pares}
 
-Los modelos de lenguaje pre-entrenados como BERT (\textit{Bidirectional Encoder Representations from Transformers}) ofrecen una vía para abordar la heterogeneidad estructural descrita en la sección anterior. Su representación textual permite procesar registros con atributos faltantes sin requerir imputación de datos; sin embargo, esto no garantiza una robustez intrínseca ante la ausencia de información, pues el impacto depende del patrón de faltantes y de la capacidad del modelo para discriminar con los atributos disponibles. Su aplicación directa al problema de ligado de registros enfrenta además una barrera computacional inmediata: la comparación exhaustiva.
+Los modelos de lenguaje preentrenados como BERT (\textit{Bidirectional Encoder Representations from Transformers}) ofrecen una vía para abordar la heterogeneidad estructural descrita en la sección anterior. Su representación textual permite procesar registros con atributos faltantes sin requerir imputación de datos; sin embargo, esto no garantiza una robustez intrínseca ante la ausencia de información, pues el impacto depende del patrón de faltantes y de la capacidad del modelo para discriminar con los atributos disponibles. Su aplicación directa al problema de ligado de registros enfrenta además una barrera computacional inmediata: la comparación exhaustiva.
 
 Dadas dos bases de datos $A$ y $B$ con $n$ y $m$ registros respectivamente, el enfoque ingenuo de evaluar todos los pares posibles tiene complejidad $\mathcal{O}(n \cdot m)$. En el caso concreto del INER, los volúmenes de las tres fuentes (4,278 registros en Comorbilidad, 4,632 en Económico y 14,796 en Trabajo Social) generan productos cartesianos del orden de decenas de millones de pares. Por ejemplo, alinear Comorbilidad contra Económico produce aproximadamente 19.8 millones de combinaciones, y Comorbilidad contra Trabajo Social alcanza 63.3 millones (Figura~\ref{fig:cubo_producto_cartesiano}). Ejecutar un Transformer profundo sobre cada par es computacionalmente inviable, incluso con aceleración por GPU.
 
 \input{Figuras/cubo_producto_cartesiano}
 
-La solución propuesta sigue la arquitectura \textit{Retrieve \& Re-rank}, un embudo de dos fases que separa la eficiencia de la profundidad. En la primera fase, un modelo ligero (\textit{Bi-Encoder}) proyecta cada registro a un vector denso de baja dimensión y recupera los $K$ vecinos más cercanos mediante similitud coseno, reduciendo el espacio de búsqueda de $\mathcal{O}(n \cdot m)$ a $\mathcal{O}(n \cdot K)$ con $K \ll m$. En la segunda fase, un modelo profundo (\textit{Cross-Encoder}) examina con atención cruzada únicamente los $K$ pares candidatos por registro y produce una decisión final de ligado.
+El sistema propuesto adopta la arquitectura en dos etapas descrita en la Sección~\ref{sec:estado_arte}: recuperación de candidatos y clasificación de pares de registros. En la primera etapa, un Bi-Encoder codifica cada registro de forma separada en un vector denso; después, cada registro actúa como consulta y se recuperan, mediante similitud coseno, sus $K$ registros más similares, de los cuales se conservan como candidatos únicamente los que pertenecen a una base de datos distinta de la del registro de consulta. En la segunda etapa, un Cross-Encoder procesa conjuntamente cada par formado por un registro de consulta y uno de sus candidatos, lo que permite modelar, mediante autoatención, interacciones cruzadas entre los tokens de ambos registros; a partir de esa representación conjunta produce la decisión de ligado. De este modo, el Cross-Encoder evalúa como máximo $K$ pares por registro, en lugar de comparar cada registro con todos los de las otras bases de datos.
 
-Esta arquitectura no solo resuelve el problema de escalabilidad, sino que además introduce una división metodológica natural entre las dos fases. El Bi-Encoder optimiza recuperación (\textit{recall}), priorizando no descartar ningún par legítimo, mientras que el Cross-Encoder optimiza precisión (\textit{precision}), discriminando entre los falsos positivos y los verdaderos positivos que el primer filtro no pudo separar. El resultado, esquematizado en la Figura~\ref{fig:embudo_arquitectura}, es un sistema que combina lo mejor de ambos mundos: la eficiencia de una búsqueda de vecinos y la sensibilidad de un clasificador profundo.
+Esta arquitectura asigna a cada etapa un objetivo distinto. La recuperación de candidatos prioriza la cobertura (\textit{recall}), pues un par coincidente que no se recupera ya no puede evaluarse en la etapa siguiente. La clasificación de pares prioriza la precisión (\textit{precision}): entre los candidatos recuperados, debe distinguir los registros que corresponden a la misma persona de aquellos que solo son similares. La Figura~\ref{fig:embudo_arquitectura} esquematiza el sistema.
 
 \input{Figuras/embudo_arquitectura}
 
-Antes de describir cada fase en detalle, es necesario resolver un problema transversal: los modelos Transformer procesan secuencias de texto, no filas de una base de datos. La siguiente sección aborda el mecanismo de serialización que convierte los registros tabulares del INER en secuencias de texto plano sin perder la estructura semántica de los datos.
+Antes de describir cada etapa en detalle, es necesario resolver un problema transversal: los modelos Transformer procesan secuencias de texto, no filas de una base de datos. La siguiente sección aborda el mecanismo de serialización que convierte los registros tabulares del INER en secuencias de texto plano sin perder la estructura semántica de los datos.
 
 % ==============================================================================
 % 4.3 EARLY FUSION Y TOKENS (Ahora tiene sentido)
@@ -136,7 +136,7 @@ En la sección anterior se definió el concepto de \textbf{bloque semántico} co
 
 La ventaja de la fusión temprana, además de la simplicidad en la implementación, es que el mecanismo de atención del Transformer puede modelar las interacciones entre cualquier par de atributos desde la primera capa de manera autónoma, sin requerir ingeniería de características, supuestos sobre importancia relativa de columnas ni depender de valores no nulos en campos específicos.
 
-El formato de serialización sigue una estructura de clave-valor etiquetada mediante tokens especiales adoptada de la arquitectura DITTO~\cite{li2020}. En dicha arquitectura, cada atributo se representa con los tokens \texttt{[COL]} y \texttt{[VAL]} para indicar el inicio del nombre del atributo y de su valor respectivamente, enseñando al modelo la estructura relacional clave-valor. Sobre esta base, este trabajo introduce una extensión jerárquica: los tokens \texttt{[BLK\_ID]}, \texttt{[BLK\_CLIN]}, etc., delimitan los bloques semánticos definidos en la Sección~\ref{sec:bloques_semanticos}, permitiendo que el modelo aprenda la pertenencia de cada atributo a su bloque y pondere la importancia relativa de cada modalidad (Figura~\ref{fig:serializacion_early_fusion}). Por ejemplo, un registro mínimo con identidad y datos clínicos se serializaría como:
+El formato de serialización sigue una estructura de clave-valor etiquetada mediante tokens especiales adoptada de la arquitectura Ditto~\cite{li2020}. En dicha arquitectura, cada atributo se representa con los tokens \texttt{[COL]} y \texttt{[VAL]} para indicar el inicio del nombre del atributo y de su valor respectivamente, enseñando al modelo la estructura relacional clave-valor. Sobre esta base, este trabajo introduce una extensión jerárquica: los tokens \texttt{[BLK\_ID]}, \texttt{[BLK\_CLIN]}, etc., delimitan los bloques semánticos definidos en la Sección~\ref{sec:bloques_semanticos}, permitiendo que el modelo aprenda la pertenencia de cada atributo a su bloque y pondere la importancia relativa de cada modalidad (Figura~\ref{fig:serializacion_early_fusion}). Por ejemplo, un registro mínimo con identidad y datos clínicos se serializaría como:
 
 \begin{verbatim}
 [BLK_ID] [COL] nombre [VAL] JUAN PEREZ [COL] edad [VAL] 45 [/BLK_ID]
@@ -145,9 +145,9 @@ El formato de serialización sigue una estructura de clave-valor etiquetada medi
 
 \input{Figuras/serializacion_early_fusion}
 
-La literatura de DITTO propone además dos mecanismos complementarios: la \textit{tipificación de segmentos} (\textit{span typing}), que envuelve campos críticos como identificadores únicos o fechas con etiquetas especiales (\texttt{<UID>}, \texttt{<DATE>}) para forzar la atención sobre coincidencias exactas, y la \textit{normalización de segmentos} (\textit{span normalization}), que estandariza formatos variables (fechas, numéricos) a una representación canónica~\cite{li2020}. Ambos mecanismos fueron considerados durante el diseño, pero se descartaron en la implementación final: en los registros del INER, la variabilidad de formato en esos campos es limitada y el modelo puede aprender las correspondencias sintácticas mediante el entrenamiento contrastivo que se describe en las secciones siguientes, sin necesidad de etiquetas adicionales.
+La literatura de Ditto propone además dos mecanismos complementarios: la \textit{tipificación de segmentos} (\textit{span typing}), que envuelve campos críticos como identificadores únicos o fechas con etiquetas especiales (\texttt{<UID>}, \texttt{<DATE>}) para forzar la atención sobre coincidencias exactas, y la \textit{normalización de segmentos} (\textit{span normalization}), que estandariza formatos variables (fechas, numéricos) a una representación canónica~\cite{li2020}. Ambos mecanismos fueron considerados durante el diseño, pero se descartaron en la implementación final: en los registros del INER, la variabilidad de formato en esos campos es limitada y el modelo puede aprender las correspondencias sintácticas mediante el entrenamiento contrastivo que se describe en las secciones siguientes, sin necesidad de etiquetas adicionales.
 
-Para evaluar las decisiones de representación se generaron cuatro variantes. La literatura de DITTO propone el token especial \texttt{[VAL\_NULL]} para señalar ausencias~\cite{li2020}; en este trabajo, las variantes que conservan nulos utilizan el marcador textual \texttt{NULL}.
+Para evaluar las decisiones de representación se generaron cuatro variantes. La literatura de Ditto propone el token especial \texttt{[VAL\_NULL]} para señalar ausencias~\cite{li2020}; en este trabajo, las variantes que conservan nulos utilizan el marcador textual \texttt{NULL}.
 \begin{itemize}
     \item \texttt{tok\_keepnull}: utiliza tokens especiales estructurales y conserva los valores nulos como \texttt{NULL}.
     \item \texttt{tok\_skipnull}: utiliza los mismos tokens especiales y omite las columnas con valores nulos; un bloque vacío también se omite.
@@ -159,7 +159,7 @@ En las variantes \texttt{tok}, los siete tokens especiales estructurales (\textt
 
 Esta representación tiene tres propiedades deseables. Primera, preserva la semántica de los bloques y permite que el modelo pondere su importancia mediante la atención. Segunda, la estructura clave-valor hace explícita la correspondencia entre columnas de distintas fuentes aunque los nombres difieran; el modelo aprende que \texttt{[COL] nombre} en una base y \texttt{[COL] NOMBRE\_DEL\_PACIENTE} en otra apuntan al mismo tipo de información. Tercera, la serialización es completamente determinista e independiente del orden de las columnas originales, lo que garantiza reproducibilidad.
 
-Dado que los modelos Transformer imponen un límite estricto de tokens de entrada, se midió la longitud de los registros de cada variante con el tokenizador registrado del Bi-Encoder canónico, incluyendo los tokens de inicio y separación y sin aplicar truncamiento. La Tabla~\ref{tab:tokens_comparativo} resume los 23,706 registros de cada variante.
+Dado que los modelos Transformer imponen un límite estricto de tokens de entrada, se midió la longitud de los registros de cada variante con el tokenizador registrado del Bi-Encoder final, incluyendo los tokens de inicio y separación y sin aplicar truncamiento. La Tabla~\ref{tab:tokens_comparativo} resume los 23,706 registros de cada variante.
 
 \begin{table}[H]
 \centering
@@ -186,10 +186,10 @@ Ningún registro individual supera el límite de 512 tokens configurado en el Bi
 % ==============================================================================
 % 4.4 FASE 1: SBERT
 % ==============================================================================
-\section{Fase 1: Recuperación eficiente (\textit{Retrieval}) mediante Bi-Encoders}
+\section{Etapa 1: Recuperación de candidatos mediante un Bi-Encoder}
 \label{sec:bi_encoder}
 
-La primera fase del embudo \textit{Retrieve \& Re-rank} emplea una arquitectura \textbf{Bi-Encoder} basada en \textit{Sentence-BERT} (SBERT)~\cite{reimers2019}. A diferencia de un Transformer convencional que procesa un par de secuencias de forma conjunta, el Bi-Encoder utiliza dos codificadores con pesos compartidos (arquitectura siamesa) que procesan cada registro de forma independiente. Cada registro serializado se pasa por el mismo Transformer pre-entrenado y la representación de la secuencia completa se condensa en un vector denso mediante \textit{mean pooling} sobre los tokens de salida de la última capa oculta.
+La etapa de recuperación de candidatos emplea una arquitectura \textbf{Bi-Encoder} basada en \textit{Sentence-BERT} (SBERT)~\cite{reimers2019}. A diferencia de un Transformer convencional que procesa un par de secuencias de forma conjunta, el Bi-Encoder utiliza dos codificadores con pesos compartidos (arquitectura siamesa) que procesan cada registro de forma independiente. Cada registro serializado se pasa por el mismo Transformer preentrenado y la representación de la secuencia completa se condensa en un vector denso mediante \textit{mean pooling} sobre los tokens de salida de la última capa oculta.
 
 \subsection{Arquitectura y configuración}
 
@@ -197,7 +197,7 @@ La Tabla~\ref{tab:biencoder_config} resume la configuración utilizada para el B
 
 \begin{table}[H]
 \centering
-\caption{Configuración canónica del Bi-Encoder final}
+\caption{Configuración del Bi-Encoder final}
 \label{tab:biencoder_config}
 \small
 \begin{tabular}{>{\raggedright\arraybackslash}p{4.5cm}
@@ -247,7 +247,7 @@ El \texttt{BiEncoderDataset} construye dos tipos de pares por época:
     \item \textbf{Pares sintéticos (aumentación):} cada registro original + su versión aumentada \textit{on-the-fly}.
 \end{itemize}
 
-La aumentación (configurable, $n_{\text{aug}}$ por registro) aplica operadores estocásticos sobre la serialización parseada (Tabla~\ref{tab:aug_ops}). Su diseño retoma principios de aumento textual estudiados en Snippext~\cite{miao2020} y operadores estructurales adaptados al emparejamiento de entidades por DITTO~\cite{li2020}, pero los ajusta a los bloques y atributos de este proyecto. No se implementó la interpolación MixDA. En la metodología oficial $n_{\text{aug}}=0$ (ver Sección~\ref{sec:entrenamiento}); los operadores quedaron disponibles para experimentación.
+La aumentación (configurable, $n_{\text{aug}}$ por registro) aplica operadores estocásticos sobre la serialización parseada (Tabla~\ref{tab:aug_ops}). Su diseño retoma principios de aumento textual estudiados en Snippext~\cite{miao2020} y operadores estructurales adaptados al emparejamiento de entidades por Ditto~\cite{li2020}, pero los ajusta a los bloques y atributos de este proyecto. No se implementó la interpolación MixDA. En la metodología oficial $n_{\text{aug}}=0$ (ver Sección~\ref{sec:entrenamiento}); los operadores quedaron disponibles para experimentación.
 
 \begin{table}[H]
 \centering
@@ -319,12 +319,12 @@ Las métricas de ranking no distinguen entre modelos cuando todos recuperan los 
 Un valor alto indica que los pares positivos y negativos ocupan regiones distinguibles del espacio de \textit{embeddings}, independientemente de una posición específica en la lista de recuperación.
 
 % ==============================================================================
-% 4.5 FASE 2: DITTO
+% 4.5 FASE 2: Ditto
 % ==============================================================================
-\section{Fase 2: Clasificación fina (\textit{Re-ranking}) mediante Cross-Encoders}
+\section{Etapa 2: Clasificación de pares de registros mediante un Cross-Encoder}
 \label{sec:cross_encoder}
 
-La segunda fase del sistema recibe los $K$ pares candidatos generados por el Bi-Encoder y los somete a un escrutinio más profundo mediante un Cross-Encoder. A diferencia del Bi-Encoder, que codifica cada registro de forma independiente, el Cross-Encoder concatena los dos registros serializados en una sola secuencia separada por el token \texttt{[SEP]} y los procesa conjuntamente en una única pasada a través del Transformer. Esto permite que el mecanismo de atención cruzada compare directamente cada token de un registro contra cada token del otro, modelando dependencias sutiles que un Bi-Encoder, al proyectar cada registro a un vector independiente, necesariamente pierde.
+La etapa de clasificación de pares recibe los candidatos generados por el Bi-Encoder, como máximo $K$ por registro de consulta, y determina mediante un Cross-Encoder si cada uno corresponde a la misma persona que el registro de consulta. A diferencia del Bi-Encoder, que codifica cada registro de forma independiente, el Cross-Encoder concatena los dos registros serializados en una sola secuencia separada por el token \texttt{[SEP]} y los procesa conjuntamente en una única pasada a través del Transformer. Así, la autoatención opera sobre la secuencia concatenada y permite que cada token de un registro se relacione directamente con cada token del otro, modelando dependencias sutiles que un Bi-Encoder, al proyectar cada registro a un vector independiente, necesariamente pierde.
 
 La Figura~\ref{fig:cross_attention} ilustra este mecanismo de interacción contextual entre ambos registros.
 
@@ -332,11 +332,11 @@ La Figura~\ref{fig:cross_attention} ilustra este mecanismo de interacción conte
 
 \subsection{Arquitectura}
 
-La arquitectura está inspirada en DITTO~\cite{li2020}, un modelo de ligado de registros basado en Transformers que demostró resultados competitivos en múltiples \textit{benchmarks}. La Tabla~\ref{tab:cross_encoder_architecture} resume la configuración.
+La arquitectura está inspirada en Ditto~\cite{li2020}, un modelo de ligado de registros basado en Transformers que demostró resultados competitivos en múltiples \textit{benchmarks}. La Tabla~\ref{tab:cross_encoder_architecture} resume la configuración.
 
 \begin{table}[H]
 \centering
-\caption{Configuración del Cross-Encoder (Fase 2)}
+\caption{Configuración del Cross-Encoder (Etapa 2)}
 \label{tab:cross_encoder_architecture}
 \small
 \begin{tabular}{>{\raggedright\arraybackslash}p{4.5cm} >{\raggedright\arraybackslash}p{10cm}}
@@ -353,7 +353,7 @@ La arquitectura está inspirada en DITTO~\cite{li2020}, un modelo de ligado de r
 \end{tabular}
 \end{table}
 
-Cada par se presenta una sola vez en el orden \texttt{[CLS] $S_a$ [SEP] $S_b$ [SEP]}. Los segmentos $S_a$ y $S_b$ se determinan mediante el orden canónico de los identificadores de registro (\texttt{record\_id\_a} < \texttt{record\_id\_b}), no por una orientación fija entre las fuentes. La tokenización conjunta aplica el límite de 512 tokens y trunca los pares que lo exceden; esta configuración no incorpora la permutación del par durante el entrenamiento ni la evaluación.
+Los dos registros de cada par se concatenan en un orden fijo, con la forma \texttt{[CLS] $S_a$ [SEP] $S_b$ [SEP]}, y cada par se procesa una sola vez: la orientación inversa, \texttt{[CLS] $S_b$ [SEP] $S_a$ [SEP]}, no se incorpora durante el entrenamiento ni durante la evaluación. La tokenización conjunta aplica el límite de 512 tokens y trunca los pares que lo exceden.
 
 Para documentar el efecto de la serialización sobre la entrada conjunta, se midieron sin truncamiento los mismos pares candidatos con las cuatro variantes. La Tabla~\ref{tab:cross_encoder_lengths} muestra la longitud resultante antes de aplicar el límite de 512 tokens. La variante \texttt{tok\_skipnull} corresponde a la entrada efectiva del Cross-Encoder entrenado; las restantes son comparaciones contrafactuales de longitud sobre los mismos pares.
 
@@ -424,12 +424,12 @@ La principal ventaja de la arquitectura del Cross-Encoder sobre el Bi-Encoder re
 
 \subsection{Minería de negativos difíciles (\textit{Hard Negative Mining})}
 
-Gracias a la ventaja mencionada anteriormente, la etapa del Cross-Encoder debe concentrarse únicamente en los candidatos plausibles que genera la fase de recuperación. Para lograr un buen desempeño en esta tarea, se implementa una estrategia de \textit{Hard Negative Mining} (HNM). En este contexto, minar negativos no significa obtener datos nuevos, sino seleccionar entre los pares de entidades distintas aquellos que el Bi-Encoder considera más similares y que, por ello, constituyen ejemplos difíciles para el clasificador.
+Gracias a la ventaja mencionada anteriormente, la etapa del Cross-Encoder debe concentrarse únicamente en los candidatos plausibles que genera la etapa de recuperación. Para lograr un buen desempeño en esta tarea, se implementa una estrategia de \textit{Hard Negative Mining} (HNM). En este contexto, minar negativos no significa obtener datos nuevos, sino seleccionar entre los pares de entidades distintas aquellos que el Bi-Encoder considera más similares y que, por ello, constituyen ejemplos difíciles para el clasificador.
 
 Antes de clasificar los pares por dificultad, se realiza el siguiente procedimiento de recuperación:
 
 \begin{enumerate}
-\item El Bi-Encoder codifica los registros vinculables del \textit{split} a \textit{embeddings} proyectados al espacio métrico aprendido durante la fase previa.
+\item El Bi-Encoder codifica los registros vinculables del \textit{split} a \textit{embeddings} proyectados al espacio métrico aprendido durante la etapa previa.
 \item Cada registro se considera sucesivamente como un registro de consulta (\textit{query}); para cada consulta se recuperan sus $K$ vecinos más cercanos en dicho espacio, según su similitud coseno.
 \end{enumerate}
 
@@ -467,17 +467,17 @@ Como referencia previa al ajuste fino, la evaluación siguió el protocolo sigui
     \item \textbf{Métricas:} Recall@K (ecuación~\ref{eq:recall_at_k}), Precision@K (ecuación~\ref{eq:precision_at_k}), MRR (ecuación~\ref{eq:mrr}) y $\Delta_{\mathrm{sep}}$ (ecuación~\ref{eq:delta_sep}) para $K \in \{1, 5, 10, 20, 50\}$.
 \end{itemize}
 
-\paragraph{Entrenamiento del Bi-Encoder (Fase 1).}
+\paragraph{Entrenamiento del Bi-Encoder (Etapa 1).}
 El Bi-Encoder se optimiza mediante la función de pérdida \textit{MNRL} (\textit{Multiple Negative Ranking Loss}, ecuación~\ref{eq:mnrl}). Dado un lote de $B$ pares positivos (ancla, positivo), MNRL trata todos los demás registros del lote como negativos para cada ancla. Esto es posible porque la arquitectura siamesa permite calcular la similitud entre cualquier par de registros dentro del lote en una sola pasada hacia adelante. La temperatura $\tau$ controla qué tan ``pico'' es la distribución de similitudes y se ajustó experimentalmente. El tamaño de lote es un hiperparámetro crítico: lotes pequeños ($< 64$) generan muy pocos negativos por ancla y el gradiente se vuelve ruidoso, mientras que lotes grandes requieren más memoria GPU.
 
 Como parte del diseño experimental, se evaluaron cuatro configuraciones resultantes de combinar el uso de tokens estructurales y el tratamiento de valores nulos. Estas variantes se evaluaron con métricas de recuperación del Bi-Encoder (\textit{recall} y $\Delta_{\text{sep}}$).
 
-\paragraph{Entrenamiento del Cross-Encoder (Fase 2).}
+\paragraph{Entrenamiento del Cross-Encoder (Etapa 2).}
 Los detalles arquitectónicos y la estrategia de \textit{Hard Negative Mining} se describen en la Sección~\ref{sec:cross_encoder}. La configuración de entrenamiento se resume en la Tabla~\ref{tab:cross_encoder_training}.
 
 \begin{table}[H]
 \centering
-\caption{Configuración canónica de entrenamiento del Cross-Encoder}
+\caption{Configuración de entrenamiento del Cross-Encoder}
 \label{tab:cross_encoder_training}
 \small
 \begin{tabular}{>{\raggedright\arraybackslash}p{4cm} >{\raggedright\arraybackslash}p{10cm}}
@@ -508,7 +508,7 @@ Para cada candidato $\tau\in\mathcal{T}$ de la malla (ecuación~\ref{eq:threshol
     \tau^*=\underset{\tau\in\mathcal{T}}{\operatorname{arg\,max}}\; \operatorname{F1}_{\mathrm{val}}(\tau).
     \label{eq:threshold_selection}
 \end{equation}
-En el modelo canónico, la búsqueda sobre los 51 valores produjo $\tau^*=0.12$ y $\operatorname{F1}_{\mathrm{val}}=1.0000$. Este valor se fija antes de acceder al conjunto de prueba y se utiliza sin reajuste para obtener las métricas finales. Así, el conjunto de prueba se reserva exclusivamente para estimar la generalización del sistema, no para seleccionar su regla de decisión.
+En el modelo final, la búsqueda sobre los 51 valores produjo $\tau^*=0.12$ y $\operatorname{F1}_{\mathrm{val}}=1.0000$. Este valor se fija antes de acceder al conjunto de prueba y se utiliza sin reajuste para obtener las métricas finales. Así, el conjunto de prueba se reserva exclusivamente para estimar la generalización del sistema, no para seleccionar su regla de decisión.
 
 La calibración post-hoc de probabilidades se describe por separado en la Sección~\ref{sec:calibracion_incertidumbre}. Ajustar una temperatura modifica la escala de probabilidades para el análisis de confiabilidad, pero no altera el orden de los pares ni el umbral $\tau^*$ seleccionado en validación.
 
@@ -521,10 +521,10 @@ Se implementaron cinco operadores de aumentación: shuffling de bloques, shuffli
 % ==============================================================================
 \section{Evaluación de los modelos}
 
-La evaluación del sistema se divide en dos niveles, uno por cada fase del embudo.
+La evaluación del sistema se divide en dos niveles, uno por cada etapa del sistema.
 
 \paragraph{Métricas del Bi-Encoder.}
-La fase de recuperación se evalúa con métricas de ranking que miden si los pares positivos aparecen entre los primeros $K$ vecinos recuperados. Las métricas principales son:
+La etapa de recuperación se evalúa con métricas de ranking que miden si los pares positivos aparecen entre los primeros $K$ vecinos recuperados. Las métricas principales son:
 
 \begin{itemize}
     \item \textbf{Recall@K (ecuación~\ref{eq:recall_at_k}):} proporción de pares positivos para los cuales el registro correspondiente aparece entre los $K$ vecinos más cercanos del otro.
@@ -533,11 +533,11 @@ La fase de recuperación se evalúa con métricas de ranking que miden si los pa
 \end{itemize}
 
 \paragraph{Métricas del Cross-Encoder.}
-La fase de clasificación se evalúa con métricas de decisión binaria sobre los pares candidatos que el Bi-Encoder retuvo. La selección de $\tau^*$ se realiza únicamente sobre validación según la ecuación~\ref{eq:threshold_selection}; en prueba se reportan F1, precisión, recall, exactitud, PR-AUC, ROC-AUC, matriz de confusión y estadísticas de las puntuaciones por clase. Esta separación permite distinguir la elección de la regla de decisión de su evaluación fuera de muestra.
+La etapa de clasificación se evalúa con métricas de decisión binaria sobre los pares candidatos que el Bi-Encoder retuvo. La selección de $\tau^*$ se realiza únicamente sobre validación según la ecuación~\ref{eq:threshold_selection}; en prueba se reportan F1, precisión, recall, exactitud, PR-AUC, ROC-AUC, matriz de confusión y estadísticas de las puntuaciones por clase. Esta separación permite distinguir la elección de la regla de decisión de su evaluación fuera de muestra.
 
 \subsection{Calibración e incertidumbre}\label{sec:calibracion_incertidumbre}
 
-Después de establecer cómo se obtiene una decisión binaria, surge una pregunta distinta: ¿qué tan interpretable y confiable es la puntuación que la fundamenta? No existe una única cantidad que agote la incertidumbre de un clasificador. Por ello, el análisis se organiza en tres capas complementarias: \textit{(i)} confiabilidad probabilística mediante calibración y ECE, \textit{(ii)} ambigüedad de la puntuación mediante entropía y \textit{(iii)} proximidad a la frontera operativa mediante margen. Este análisis se acota a la etapa de reranking y, por tanto, a los pares candidatos recuperados previamente por el Bi-Encoder; no permite detectar coincidencias verdaderas que no hayan sido recuperadas en la primera etapa.
+Después de establecer cómo se obtiene una decisión binaria, surge una pregunta distinta: ¿qué tan interpretable y confiable es la puntuación que la fundamenta? No existe una única cantidad que agote la incertidumbre de un clasificador. Por ello, el análisis se organiza en tres capas complementarias: \textit{(i)} confiabilidad probabilística mediante calibración y ECE, \textit{(ii)} ambigüedad de la puntuación mediante entropía y \textit{(iii)} proximidad a la frontera operativa mediante margen. Este análisis se acota a la etapa de clasificación de pares y, por tanto, a los pares candidatos recuperados previamente por el Bi-Encoder; no permite detectar coincidencias verdaderas que no hayan sido recuperadas en la primera etapa.
 
 \paragraph{Confiabilidad probabilística: \textit{temperature scaling} y ECE.}
 La puntuación sigmoide $s_{\mathrm{raw},i}=\sigma(z_i)$ puede ordenar correctamente los pares y aun así no representar frecuencias empíricas confiables. Por ejemplo, entre los pares con puntuación cercana a 0.9, una salida calibrada requeriría que aproximadamente 90\% fueran positivos. Como calibración post-hoc, se ajustó una única temperatura positiva $T$ sobre el conjunto de validación, sin reentrenar el modelo, siguiendo el esquema de \textit{Temperature Scaling} propuesto por \textcite{guo2017}:
